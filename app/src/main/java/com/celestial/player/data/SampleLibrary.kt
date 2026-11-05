@@ -104,7 +104,7 @@ object SampleLibrary {
                     id = TrackId("${album.id}-${index + 1}"),
                     title = title,
                     artistId = ArtistId(album.artistId),
-                    artistName = artistSeeds.first { it.id == album.artistId }.name,
+                    artistName = artistSeeds.first { it.id.value == album.artistId }.name,
                     albumId = AlbumId(album.id),
                     albumTitle = album.title,
                     trackIndex = index + 1,
@@ -120,7 +120,7 @@ object SampleLibrary {
                 id = AlbumId(album.id),
                 title = album.title,
                 artistId = ArtistId(album.artistId),
-                artistName = artistSeeds.first { a -> a.id == album.artistId }.name,
+                artistName = artistSeeds.first { a -> a.id.value == album.artistId }.name,
                 colorSeed = album.colorSeed,
                 trackIds = album.tracks.indices.map { TrackId("${album.id}-${it + 1}") },
             )
@@ -128,7 +128,7 @@ object SampleLibrary {
     }
 
     val artists: List<Artist> by lazy {
-        artists.map { artist ->
+        artistSeeds.map { artist ->
             val artistAlbums = albums.filter { it.artistId == artist.id }
             Artist(
                 id = artist.id,

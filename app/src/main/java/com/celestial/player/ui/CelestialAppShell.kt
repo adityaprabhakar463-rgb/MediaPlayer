@@ -31,11 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.material3.Text
 import com.celestial.player.data.LibraryStateHolder
 import com.celestial.player.data.SampleLibrary
 import com.celestial.player.domain.model.Track
 import com.celestial.player.playback.PlayerController
 import com.celestial.player.playback.PlayerUiState
+import com.celestial.player.scene.formation.UniverseFormationSequence
+import com.celestial.player.scene.host.CelestialUniverseScene
 import com.celestial.player.ui.components.glass.CelestialGlassSurface
 import com.celestial.player.ui.components.player.MiniPlayerPlanet
 import com.celestial.player.ui.components.glass.GlassSettingsPanel
@@ -49,6 +52,7 @@ import com.celestial.player.ui.screens.artists.ArtistDetailScreen
 import com.celestial.player.ui.screens.artists.ArtistsScreen
 import com.celestial.player.ui.screens.favourites.FavouritesScreen
 import com.celestial.player.ui.screens.library.AllSongsScreen
+import com.celestial.player.ui.screens.now_playing.NowPlayingScreen
 import com.celestial.player.ui.screens.playlists.PlaylistDetailScreen
 import com.celestial.player.ui.screens.playlists.PlaylistsScreen
 import com.celestial.player.ui.screens.recentplay.RecentlyPlayedScreen
@@ -85,8 +89,12 @@ fun CelestialAppShell(
         currentTrack?.albumId?.let { albumId -> albums.firstOrNull { it.id == albumId }?.colorSeed } ?: 0
     }
 
-    BackHandler(enabled = settingsOpen || !nav.isAtRoot()) {
-        if (settingsOpen) {
+    var showFormation by remember { mutableStateOf(true) }
+
+    BackHandler(enabled = settingsOpen || !nav.isAtRoot() || showFormation) {
+        if (showFormation) {
+            showFormation = false
+        } else if (settingsOpen) {
             settingsOpen = false
         } else {
             nav.back()
@@ -101,10 +109,25 @@ fun CelestialAppShell(
             artists = artists,
             library = library,
             playerState = playerState,
+            playerController = playerController,
+            currentColorSeed = currentColorSeed,
             onPlay = { track, queue -> playerController.play(track, queue) },
-            onToggleFavourite = { library.toggleFavourite(it) },
+            onToggleFavourite = { library.toggleFavourite(it.id) },
             onOpenSettings = { settingsOpen = true },
         )
+
+        if (showFormation) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(5f),
+            ) {
+                UniverseFormationSequence(
+                    onFinished = { showFormation = false },
+                    reducedMotion = reducedEffects,
+                )
+            }
+        }
 
         AnimationLayerWrap(
             modifier = Modifier
@@ -113,21 +136,12 @@ fun CelestialAppShell(
                 .navigationBarsPadding()
                 .padding(end = 20.dp, bottom = 8.dp),
         ) {
-            Column(horizontalAlignment = Alignment.End) {
-                PlanetHintChip(hintVisible = planetHintVisible)
-                MiniPlayerPlanet(
-                    state = playerState,
-                    albumColorSeed = currentColorSeed,
-                    planetSize = 64.dp,
-                    onClick = { planetHintVisible = true },
-                )
-            }        }
-
-        LaunchedEffect(planetHintVisible) {
-            if (planetHintVisible) {
-                delay(2_800)
-                planetHintVisible = false
-            }
+            MiniPlayerPlanet(
+                state = playerState,
+                albumColorSeed = currentColorSeed,
+                planetSize = 64.dp,
+                onClick = { nav.navigate(NavTarget.NowPlaying) },
+            )
         }
 
         if (settingsOpen) {
@@ -152,7 +166,14 @@ fun CelestialAppShell(
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentHeight(),
-                    sections = settingsSections(reducedEffects, onReducedEffectsChange),
+                    sections = settingsSections(
+                        reducedEffects = reducedEffects,
+                        onReducedEffectsChange = onReducedEffectsChange,
+                        onReplayIntro = {
+                            settingsOpen = false
+                            showFormation = true
+                        },
+                    ),
                     onDismiss = { settingsOpen = false },
                 )
             }
@@ -186,6 +207,7 @@ private fun AnimationLayerWrap(
 private fun settingsSections(
     reducedEffects: Boolean,
     onReducedEffectsChange: (Boolean) -> Unit,
+    onReplayIntro: () -> Unit,
 ): List<SettingsSection> = listOf(
     SettingsSection(
         title = "Universe",
@@ -204,7 +226,9 @@ private fun settingsSections(
             SettingsEntryValue.Info(
                 label = "Replay intro",
                 description = "Replays the universe creation sequence",
-                trailing = "Coming soon",
+                trailing = "Replay",
+                enabled = true,
+                onClick = onReplayIntro,
             ),
         ),
     ),
@@ -229,6 +253,8 @@ private fun DestinationContent(
     artists: List<com.celestial.player.domain.model.Artist>,
     library: LibraryStateHolder,
     playerState: PlayerUiState,
+    playerController: PlayerController,
+    currentColorSeed: Int,
     onPlay: (Track, List<Track>) -> Unit,
     onToggleFavourite: (Track) -> Unit,
     onOpenSettings: () -> Unit,
@@ -253,17 +279,25 @@ private fun DestinationContent(
         label = "destinationTransition",
     ) { target ->
         when (target) {
-            is NavTarget.Universe -> UniversePlaceholderScreen(
-                isPlaying = playerState.isPlaying,
-                currentTrackTitle = playerState.currentTrack?.title,
-                onOpenPlaylists = { nav.navigate(NavTarget.Playlists) },
-                onOpenSearch = { nav.navigate(NavTarget.Search) },
-                onOpenAllSongs = { nav.navigate(NavTarget.AllSongs) },
-                onOpenAlbums = { nav.navigate(NavTarget.Albums) },
-                onOpenArtists = { nav.navigate(NavTarget.Artists) },
-                onOpenFavourites = { nav.navigate(NavTarget.Favourites) },
-                onOpenRecentlyPlayed = { nav.navigate(NavTarget.RecentlyPlayed) },
+            is NavTarget.Universe -> CelestialUniverseScene(
+                onSelectPlanet = { target -> nav.navigate(target) },
                 onOpenSettings = onOpenSettings,
+                returningFromTarget = nav.previousDestination,
+            )
+
+            is NavTarget.NowPlaying -> NowPlayingScreen(
+                state = playerState,
+                albumColorSeed = currentColorSeed,
+                isFavourite = playerState.currentTrack?.let { library.isFavourite(it.id) } ?: false,
+                onDismiss = { nav.back() },
+                onTogglePlayPause = { playerController.togglePlayPause() },
+                onNext = { playerController.next() },
+                onPrevious = { playerController.previous() },
+                onSeekTo = { playerController.seekTo(it) },
+                onToggleShuffle = { playerController.setShuffle(!playerState.shuffleEnabled) },
+                onCycleRepeat = { playerController.cycleRepeatMode() },
+                onToggleFavourite = { playerState.currentTrack?.let { library.toggleFavourite(it.id) } },
+                onSelectQueueTrack = { playerController.play(it, playerState.queue) },
             )
 
             is NavTarget.Playlists -> PlaylistsScreen(
@@ -297,12 +331,18 @@ private fun DestinationContent(
 
             is NavTarget.Search -> SearchDestinationScreen(
                 sampleTracks = tracks,
+                sampleAlbums = albums,
+                sampleArtists = artists,
+                playlists = library.playlists,
                 suggestedTrackIds = tracks.take(5).map { it.id },
                 isFavourite = { library.isFavourite(it.id) },
                 currentTrackId = playerState.currentTrack?.id,
                 colorSeedFor = { track -> sampleSeedFor(track) },
                 onPlayTrack = onPlay,
                 onToggleFavourite = onToggleFavourite,
+                onOpenAlbum = { nav.navigate(NavTarget.AlbumDetail(it.id)) },
+                onOpenArtist = { nav.navigate(NavTarget.ArtistDetail(it.id)) },
+                onOpenPlaylist = { nav.navigate(NavTarget.PlaylistDetail(it.id)) },
             )
 
             is NavTarget.AllSongs -> AllSongsScreen(

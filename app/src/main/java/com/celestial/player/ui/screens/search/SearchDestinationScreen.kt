@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +28,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.celestial.player.domain.model.Album
+import com.celestial.player.domain.model.Artist
+import com.celestial.player.domain.model.Playlist
 import com.celestial.player.domain.model.Track
+import com.celestial.player.ui.components.glass.GlassArtwork
 import com.celestial.player.ui.components.glass.GlassEmptyState
 import com.celestial.player.ui.components.glass.GlassIconButton
 import com.celestial.player.ui.components.glass.GlassListRow
@@ -39,12 +46,18 @@ import kotlinx.coroutines.delay
 @Composable
 fun SearchDestinationScreen(
     sampleTracks: List<Track>,
+    sampleAlbums: List<Album> = emptyList(),
+    sampleArtists: List<Artist> = emptyList(),
+    playlists: List<Playlist> = emptyList(),
     suggestedTrackIds: List<com.celestial.player.domain.model.TrackId>,
     isFavourite: (Track) -> Boolean,
     currentTrackId: com.celestial.player.domain.model.TrackId?,
     colorSeedFor: (Track) -> Int,
     onPlayTrack: (Track, List<Track>) -> Unit,
     onToggleFavourite: (Track) -> Unit,
+    onOpenAlbum: ((Album) -> Unit)? = null,
+    onOpenArtist: ((Artist) -> Unit)? = null,
+    onOpenPlaylist: ((Playlist) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf(TextFieldValue("")) }
@@ -63,12 +76,36 @@ fun SearchDestinationScreen(
         }
     }
 
-    val queryTracks = if (debouncedQuery.isBlank()) emptyList() else
-        sampleTracks.filter {
-            it.title.contains(debouncedQuery, ignoreCase = true) ||
-                it.artistName.contains(debouncedQuery, ignoreCase = true) ||
-                it.albumTitle.contains(debouncedQuery, ignoreCase = true)
-        }
+    val queryTracks = remember(debouncedQuery, sampleTracks) {
+        if (debouncedQuery.isBlank()) emptyList() else
+            sampleTracks.filter {
+                it.title.contains(debouncedQuery, ignoreCase = true) ||
+                    it.artistName.contains(debouncedQuery, ignoreCase = true) ||
+                    it.albumTitle.contains(debouncedQuery, ignoreCase = true)
+            }
+    }
+
+    val queryAlbums = remember(debouncedQuery, sampleAlbums) {
+        if (debouncedQuery.isBlank()) emptyList() else
+            sampleAlbums.filter {
+                it.title.contains(debouncedQuery, ignoreCase = true) ||
+                    it.artistName.contains(debouncedQuery, ignoreCase = true)
+            }
+    }
+
+    val queryArtists = remember(debouncedQuery, sampleArtists) {
+        if (debouncedQuery.isBlank()) emptyList() else
+            sampleArtists.filter {
+                it.name.contains(debouncedQuery, ignoreCase = true)
+            }
+    }
+
+    val queryPlaylists = remember(debouncedQuery, playlists) {
+        if (debouncedQuery.isBlank()) emptyList() else
+            playlists.filter {
+                it.name.contains(debouncedQuery, ignoreCase = true)
+            }
+    }
 
     DestinationScreen(
         title = "Search",
@@ -146,38 +183,110 @@ fun SearchDestinationScreen(
                     trackColorSeed = colorSeedFor,
                 )
             } else {
-                if (queryTracks.isEmpty()) {
+                val hasResults = when (selectedCategory) {
+                    SearchCategory.Songs -> queryTracks.isNotEmpty()
+                    SearchCategory.Albums -> queryAlbums.isNotEmpty()
+                    SearchCategory.Artists -> queryArtists.isNotEmpty()
+                    SearchCategory.Playlists -> queryPlaylists.isNotEmpty()
+                }
+
+                if (!hasResults) {
                     item(key = "no-results") {
-                        SearchEmptyState(query = debouncedQuery)
+                        SearchEmptyState(
+                            query = debouncedQuery,
+                            categoryLabel = selectedCategory.label,
+                        )
                     }
                 } else {
                     item(key = "results-header") {
-                        GlassSectionHeader(
-                            text = when (selectedCategory) {
-                                SearchCategory.Songs -> "Songs"
-                                SearchCategory.Albums -> "Albums"
-                                SearchCategory.Artists -> "Artists"
-                                SearchCategory.Playlists -> "Playlists"
-                            },
-                        )
+                        GlassSectionHeader(text = selectedCategory.label)
                     }
                     item(key = "results-count") {
+                        val count = when (selectedCategory) {
+                            SearchCategory.Songs -> queryTracks.size
+                            SearchCategory.Albums -> queryAlbums.size
+                            SearchCategory.Artists -> queryArtists.size
+                            SearchCategory.Playlists -> queryPlaylists.size
+                        }
                         Text(
-                            text = "${queryTracks.size} matches in songs",
+                            text = "$count ${selectedCategory.label.lowercase()} match \"$debouncedQuery\"",
                             style = MaterialTheme.typography.bodySmall,
                             color = CelestialTheme.colors.moonlight,
                             modifier = Modifier.padding(horizontal = CelestialTheme.spacing.screenEdge),
                         )
                     }
-                    trackListItems(
-                        tracks = queryTracks,
-                        subtitleFor = { "${it.artistName} · ${it.albumTitle}" },
-                        isFavourite = isFavourite,
-                        isCurrent = { it.id == currentTrackId },
-                        onPlay = { track -> onPlayTrack(track, queryTracks) },
-                        onToggleFavourite = onToggleFavourite,
-                        trackColorSeed = colorSeedFor,
-                    )
+
+                    when (selectedCategory) {
+                        SearchCategory.Songs -> {
+                            trackListItems(
+                                tracks = queryTracks,
+                                subtitleFor = { "${it.artistName} · ${it.albumTitle}" },
+                                isFavourite = isFavourite,
+                                isCurrent = { it.id == currentTrackId },
+                                onPlay = { track -> onPlayTrack(track, queryTracks) },
+                                onToggleFavourite = onToggleFavourite,
+                                trackColorSeed = colorSeedFor,
+                            )
+                        }
+
+                        SearchCategory.Albums -> {
+                            items(items = queryAlbums, key = { album: Album -> "album-${album.id.value}" }) { album ->
+                                GlassListRow(
+                                    title = album.title,
+                                    subtitle = album.artistName,
+                                    onClick = { onOpenAlbum?.invoke(album) },
+                                    modifier = Modifier.padding(horizontal = CelestialTheme.spacing.sm),
+                                    leading = {
+                                        GlassArtwork(
+                                            size = 48.dp,
+                                            colorSeed = album.colorSeed,
+                                            shape = MaterialTheme.shapes.medium,
+                                            icon = Icons.Filled.Album,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+
+                        SearchCategory.Artists -> {
+                            items(items = queryArtists, key = { artist: Artist -> "artist-${artist.id.value}" }) { artist ->
+                                GlassListRow(
+                                    title = artist.name,
+                                    subtitle = "${artist.albumIds.size} albums · ${artist.trackIds.size} tracks",
+                                    onClick = { onOpenArtist?.invoke(artist) },
+                                    modifier = Modifier.padding(horizontal = CelestialTheme.spacing.sm),
+                                    leading = {
+                                        GlassArtwork(
+                                            size = 48.dp,
+                                            colorSeed = artist.id.value.hashCode(),
+                                            shape = MaterialTheme.shapes.extraLarge,
+                                            icon = Icons.Filled.Person,
+                                            initials = artist.name,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+
+                        SearchCategory.Playlists -> {
+                            items(items = queryPlaylists, key = { playlist: Playlist -> "playlist-${playlist.id.value}" }) { playlist ->
+                                GlassListRow(
+                                    title = playlist.name,
+                                    subtitle = "${playlist.trackIds.size} tracks",
+                                    onClick = { onOpenPlaylist?.invoke(playlist) },
+                                    modifier = Modifier.padding(horizontal = CelestialTheme.spacing.sm),
+                                    leading = {
+                                        GlassArtwork(
+                                            size = 48.dp,
+                                            colorSeed = playlist.id.value.hashCode(),
+                                            shape = MaterialTheme.shapes.medium,
+                                            icon = Icons.AutoMirrored.Filled.QueueMusic,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -185,10 +294,15 @@ fun SearchDestinationScreen(
 }
 
 @Composable
-private fun SearchEmptyState(query: String, modifier: Modifier = Modifier) {
+private fun SearchEmptyState(
+    query: String,
+    categoryLabel: String,
+    modifier: Modifier = Modifier,
+) {
     GlassEmptyState(
-        title = "No results",
-        description = "Nothing in the sample library matches \"$query\".",
+        title = "No $categoryLabel matching",
+        description = "Nothing in $categoryLabel matches \"$query\".",
         modifier = modifier,
     )
 }
+

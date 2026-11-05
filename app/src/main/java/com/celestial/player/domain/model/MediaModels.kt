@@ -40,8 +40,8 @@ data class Album(
 data class Artist(
     val id: ArtistId,
     val name: String,
-    val albumIds: List<AlbumId>,
-    val trackIds: List<TrackId>,
+    val albumIds: List<AlbumId> = emptyList(),
+    val trackIds: List<TrackId> = emptyList(),
 )
 
 @Immutable

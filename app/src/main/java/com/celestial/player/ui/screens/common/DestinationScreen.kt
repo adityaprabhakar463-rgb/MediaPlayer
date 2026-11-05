@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.celestial.player.ui.components.backdrop.DeepSpaceBackdrop
+import com.celestial.player.ui.components.glass.GlassIconButton
 import com.celestial.player.ui.theme.CelestialTheme
 
 @Composable
@@ -46,6 +49,14 @@ fun DestinationScreen(
                     ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (onBack != null) {
+                    GlassIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = onBack,
+                        modifier = Modifier.padding(end = spacing.sm),
+                    )
+                }
                 TitleBlock(
                     title = title,
                     subtitle = subtitle,

@@ -96,6 +96,7 @@ sealed interface SettingsEntryValue {
         val trailing: String? = null,
         val icon: ImageVector? = null,
         val enabled: Boolean = false,
+        val onClick: (() -> Unit)? = null,
     ) : SettingsEntryValue
 
     data class Toggle(
@@ -152,11 +153,14 @@ private fun GlassSettingsToggleEntry(
 private fun GlassSettingsInfoEntry(entry: SettingsEntryValue.Info) {
     val colors = CelestialTheme.colors
     val spacing = CelestialTheme.spacing
+    val modifier = Modifier
+        .fillMaxWidth()
+        .alpha(if (entry.enabled || entry.onClick != null) 1f else 0.55f)
+        .let { if (entry.onClick != null) it.clickable(role = Role.Button, onClick = entry.onClick) else it }
+        .padding(horizontal = spacing.sm, vertical = spacing.sm)
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(if (entry.enabled) 1f else 0.55f)
-            .padding(horizontal = spacing.sm, vertical = spacing.sm),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -173,7 +177,7 @@ private fun GlassSettingsInfoEntry(entry: SettingsEntryValue.Info) {
         }
         if (entry.trailing != null) {
             Text(
-                text = entry.trailing.orEmpty(),
+                text = entry.trailing,
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.moonlight,
             )
