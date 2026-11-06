@@ -30,6 +30,8 @@ Full context lives in the docs and code; this file only tracks progress and phas
 | Area | State |
 |---|---|
 | Design documentation (`docs/frontend/01`–`11`) | Complete (committed: `b1a1044`) |
+| Frontend improvement docs (15 navigation/UX labels, 16 performance) | Written |
+| Backend documentation (`docs/backend/01`–`12`) | Written |
 | Gradle project scaffold (`:app`, AGP 9.5, Kotlin 2.4.10, Compose BOM 2026.09) | Complete |
 | Phase 1 — Design foundation | Complete ✅ |
 | Phase 2 — Destination UI without 3D | Complete ✅ |
@@ -170,7 +172,7 @@ Also verify after fixes: `MiniPlayerPlanet` uses `3.dp` inside `Canvas` stroke (
 - [x] Starfield and central star (800+ star particles, luminous central star w/ corona & flares)
 - [x] Destination planets and camera controller (7 distinct 3D planets + `OrbitCamera`)
 - [x] Free rotation, pinch zoom, selection (3D gesture drag w/ inertia, pinch zoom, raycasting hit-testing)
-- [x] Planet labels on approach/selection only (Glass surface card appears on tap/approach)
+- [x] Planet labels always visible glass pills with selected emphasis (`docs/frontend/15`)
 
 ### Phase 4 — Navigation and continuity ✅ Done
 - [x] Planet approach transition (camera smooth zoom to selected planet on tap)
@@ -201,6 +203,25 @@ Also verify after fixes: `MiniPlayerPlanet` uses `3.dp` inside `Canvas` stroke (
 - [x] Responsive layouts (adaptive album grid, window insets padding, edge-to-edge support)
 - [x] Performance profiling (60 FPS hardware-accelerated Canvas rendering, bounded particle counts)
 - [x] Device testing and visual review (unit tests passing, Robolectric gallery golden tests passing)
+
+### Frontend improvement documentation
+- `docs/frontend/15_NAVIGATION_UX_AND_PLANET_LABELS.md` — navigation model, destination registry, always-visible planet labels with selected emphasis, accessible Destinations sheet fallback, gesture and accessibility rules.
+- `docs/frontend/16_LIGHTWEIGHT_PERFORMANCE.md` — lightweight, lag-free optimization without major changes; Compose hot paths, renderer performance, label performance, measurement and acceptance gates.
+
+Locked frontend improvement decisions:
+- Labels always visible while planet is on screen, stronger on selected planet.
+- Accessible non-3D Destinations button/sheet added as fallback.
+- Performance target: 60 FPS on mid-range 2022+ phones; adaptive reduced effects below that.
+- No hardcoding: every value from tokens / single source of truth; every component real and working.
+- Local audio feature: user-set directory scanned recursively for mp3/wav/flac/opus, played through the same player model, directory persisted via DataStore.
+- No code changes; docs only.
+
+Locked backend decisions:
+- Catalog source: Audius free API (prototype); curated verified artists only.
+- Stack: Kotlin + Ktor + PostgreSQL, Docker deployment.
+- Auth: anonymous device account first, optional upgrade/link to email + password.
+- No audio hosting/transcoding; no offline audio downloads in prototype.
+- No code changes; docs only.
 
 ---
 
