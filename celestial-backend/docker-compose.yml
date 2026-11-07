@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: celestial
+      POSTGRES_USER: celestial
+      POSTGRES_PASSWORD: celestial_dev_password_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - celestial_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U celestial -d celestial"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/celestial
+    ports:
+      - "8080:8080"
+    profiles:
+      - app
+
+volumes:
+  celestial_pgdata:

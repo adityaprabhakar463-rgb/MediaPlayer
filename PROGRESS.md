@@ -1,8 +1,8 @@
 # Celestial — Progress & Phases
 
-**Last updated:** 2026-11-05
-**Product:** Celestial, native Android space-themed media player (Kotlin + Jetpack Compose)
-**Reference:** `docs/frontend/11_FRONTEND_IMPLEMENTATION_GUIDE.md` (phase definitions and acceptance criteria)
+**Last updated:** 2026-11-07
+**Product:** Celestial, native Android space-themed media player (Kotlin + Jetpack Compose); remote backend (Ktor + PostgreSQL + curated Audius catalog prototype)
+**Reference:** `docs/frontend/11_FRONTEND_IMPLEMENTATION_GUIDE.md` (frontend phases); `docs/backend/01`–`12` (backend vision/architecture/contract/auth/Audius/sync/ops/testing/impl/catalog); `docs/backend/11_BACKEND_IMPLEMENTATION_GUIDE.md` (backend milestones M0–M3)
 
 ---
 
@@ -31,7 +31,7 @@ Full context lives in the docs and code; this file only tracks progress and phas
 |---|---|
 | Design documentation (`docs/frontend/01`–`11`) | Complete (committed: `b1a1044`) |
 | Frontend improvement docs (15 navigation/UX labels, 16 performance) | Written |
-| Backend documentation (`docs/backend/01`–`12`) | Written |
+| Backend documentation (`docs/backend/00`–`12`) | Written; **`01`–`12` + PROGRESS authoritative** (remote Ktor/Postgres/curated Audius). **`00_BACKEND_CONCEPT.md` legacy/conflicting** (on-device) — confirmed 2026-11-07 |
 | Gradle project scaffold (`:app`, AGP 9.5, Kotlin 2.4.10, Compose BOM 2026.09) | Complete |
 | Phase 1 — Design foundation | Complete ✅ |
 | Phase 2 — Destination UI without 3D | Complete ✅ |
@@ -42,6 +42,7 @@ Full context lives in the docs and code; this file only tracks progress and phas
 | Phase 7 — Refinement and quality | Complete ✅ |
 | 3D renderer engine | Built native 3D math & projection engine under `scene/` |
 | Playback (Media3) | Not yet integrated — single state model + sample simulation placeholder in `playback/` |
+| Backend server implementation (`celestial-backend/`, remote) | **M0 complete** (2026-11-07: scaffold + auth skeleton, local compile + smoke test). **M1 next**, awaiting "go". |
 
 ### What exists today
 
@@ -216,12 +217,112 @@ Locked frontend improvement decisions:
 - Local audio feature: user-set directory scanned recursively for mp3/wav/flac/opus, played through the same player model, directory persisted via DataStore.
 - No code changes; docs only.
 
-Locked backend decisions:
+Locked backend decisions (per docs 01–12 / prior lock):
 - Catalog source: Audius free API (prototype); curated verified artists only.
 - Stack: Kotlin + Ktor + PostgreSQL, Docker deployment.
 - Auth: anonymous device account first, optional upgrade/link to email + password.
 - No audio hosting/transcoding; no offline audio downloads in prototype.
-- No code changes; docs only.
+- No code changes in that docs-only task; backend implementation now proceeds by approved phases (Step 1 done, Step 2 pending approval).
+
+---
+
+## Backend (remote server) — architecture, phases, and implementation
+
+**Authoritative docs:** `docs/backend/01–12` + PROGRESS locked decisions. `docs/backend/00_BACKEND_CONCEPT.md` is **legacy/conflicting** (on-device scope) — do not use as backend source of truth (confirmed 2026-11-07).
+**Implementation location:** `celestial-backend/` (standalone Gradle project at repo root; no `app/` / Android frontend changes).
+**Status (2026-11-07):** M0 complete (local compile + smoke test; Docker/Testcontainers not available in this env). M1 awaiting "go".
+
+### Architecture (docs 01–03, 11)
+
+- **Style:** Ktor modular monolith (domain pure Kotlin, no Android imports). Modules point inward (doc 02): `auth`, `catalog`, `library`, `audius-adapter`, `search`, `admin`.
+- **Provider boundary:** `TrackSource` interface (`search`, `getTrack`, `resolveStream`) — Audius implementation first; swappable to Jamendo/licensed/self-hosted without client contract churn (doc 02, 06, 11 M3).
+- **Data boundaries:** backend never stores/transcodes/CDN/proxies audio bytes in prototype; never persists Audius stream URLs long-term (resolved per play, short-lived). Client stores metadata + external IDs (doc 01, 02, 06).
+- **Catalog quality:** curated verified artists only; no global/unfiltered Audius search (doc 01, 06, 07, 12).
+
+### Stack (doc 02; M0 actuals noted)
+
+| Layer | Planned (doc 02) | M0 actual (2026-11-07) |
+|---|---|---|
+| Language | Kotlin 2.4.10 (K2) | **Kotlin 2.1.0** plugin (Gradle 8.10.2 wrapper in `celestial-backend/`) for reliable compile in this env — revisit/pin with toolchain stabilization |
+| Framework | Ktor (REST, kotlinx.serialization) | Ktor **3.0.3** (Netty, content negotiation/JSON, status pages, call logging/default headers deps, auth/JWT deps) |
+| Database | PostgreSQL + Flyway; Exposed or plain SQL | PostgreSQL + **Flyway 10.20.1** + **Exposed 0.57.0** (core/dao/jdbc/java-time) + **HikariCP 6.2.1** |
+| Auth | JWT access + rotated refresh; Argon2id for upgraded passwords | JWT access + **rotated refresh** via `java-jwt` 4.4.0; device secret/refresh tokens stored as **SHA-256 hashes**; **Argon2id** (`argon2-jvm` 2.11) dep added for future password upgrade (not used in M0 routes) |
+| DI | Koin or manual | Manual/minimal wiring in `Application.module` |
+| Runtime | Docker Compose dev (Postgres + backend), CI/CD | `docker-compose.yml` (Postgres 16 + backend `app` profile, healthcheck), `Dockerfile`, `.env.example` present; **Docker not available in this env** (compose/Testcontainers not executed here) |
+| Contract | OpenAPI source of truth; RFC 9457 errors | RFC 9457 `application/problem+json` implemented (`problem/`); **OpenAPI/contract tests not yet generated** (gap — M1/M3) |
+| Build | — | JVM toolchain 21; `layout.buildDirectory` = `${user.home}/.celestial-build/celestial-backend` (Windows OneDrive lock workaround) |
+
+### API contract highlights (doc 04)
+
+- Base: `REST v1` under `/api/v1/*`. Cursor pagination (`next_cursor`, `limit`), `Idempotency-Key` for state-changing writes, ISO-8601 UTC timestamps. Auth via Bearer access token; anonymous device bootstrap per device credentials.
+- **Auth:** `POST /auth/device/register`, `POST /auth/token/refresh`, `POST /auth/upgrade` (M2), `POST /auth/revoke`.
+- **Catalog:** `GET /catalog/search`, `GET /catalog/tracks/{id}`, `GET /catalog/artists/{id}`, `GET /catalog/playback/{trackId}` (short-lived stream URL/redirect metadata; client/Media3 fetches direct — confirmed).
+- **Library:** playlists CRUD, favourites toggle/list, recents list/record.
+- **Sync:** `GET /sync/changes?since_version=`, `POST /sync/ack` (delta + tombstones + ack, optimistic version).
+- **Ops:** `GET /health`, `GET /ready`, `GET /version`.
+
+### Auth & security (doc 05)
+
+- Anonymous device account on first launch; device identified by installation ID + device secret (Android Keystore on client). Optional upgrade/link merges anonymous data. **Linked account confirmed:** email + password first (Argon2id); Google Sign-In deferred.
+- Access token short TTL; refresh token rotated, hashed, revocable. Per-device/IP limits on auth/search planned; Audius keys server-side only.
+- No secrets/tokens/PII in logs; HTTPS. Audius terms: as-is/revocable, no ML training on content, **session-only caching, no offline audio downloads**; attribution as required.
+
+### Audius integration & streaming (doc 06)
+
+- Audius = prototype source for full-length streams (not previews). Caveats: no SLA, indie-heavy catalog, possible unofficial reuploads, 10 rps / 500k req/month free tier, session-scope caching only.
+- Flow (server-side only): resolve healthy discovery nodes (`api.audius.co`) → backend proxies search/lookup through healthy node with `app_name=celestial` → filter curated allowlist + availability → per-play stream resolution (`/v1/tracks/{id}/stream`, 302 signed URL). **Client never calls Audius directly.**
+- Playable only if `is_streamable && is_available && !is_delete` and artist in curated allowlist; else unavailable state. Negative-cache unavailable/deleted with short TTL.
+- **Playback delivery confirmed:** resolve and return short-lived stream URL/redirect metadata for client/Media3 direct fetch (no backend proxy). Proxy deferred; revisit if Android/CORS/range issues appear.
+
+### Sync & offline (doc 08)
+
+- Syncs favourites/playlists/playlist items/recents (optional prefs later) via device registration + delta cursor (`sync_changes`/`version`), tombstones, `/sync/ack`, optimistic `version`/`updated_at` last-write-wins per entity.
+- Offline = metadata only (Room/DataStore on Android, WorkManager sync); **no offline audio downloads** (Audius terms). Caps align with client.
+
+### Phases — milestones M0–M3 (doc 11)
+
+| Phase | Goal | Status (2026-11-07) | Key areas (per docs) | Acceptance (per docs) | Tests / verification |
+|---|---|---|---|---|---|
+| **M0 — Skeleton + auth** | Runnable Ktor + Postgres/Flyway + Docker Compose; anonymous device register; JWT access/refresh rotation; revoke; health/ready/version. | **Complete** | `celestial-backend/`; migrations; config/db/problem/auth/api modules | Compiles; health/version OK (smoke, no DB path); register→creds+tokens; refresh rotates+revokes old; revoke invalidates device refresh tokens; no secrets committed | `./gradlew.bat test --tests app.celestial.backend.AppSmokeTest` ✅ (passed). `AuthIntegrationTest` (Testcontainers Postgres) written; **skipped here (Docker unavailable)**. Docker compose not executed in this env. |
+| **M1 — Catalog + Audius adapter** | `TrackSource` + Audius impl; discovery-node failover; curated allowlist; search/track/playback resolution; availability filter; negative-cache TTL; server-side budget. | **Awaiting "go"** | `audius-adapter`/`catalog`/`search` pkgs, curated seed (doc 12), catalog+playback routes, budget/rate component, OpenAPI | Only curated+available+streamable playable; client never calls Audius; 429+`Retry-After` on exhaustion; failover works | Planned: mocked adapter/HTTP unit tests, mock Audius integration, contract tests, budget/load smoke |
+| **M2 — Library + sync** | Playlists/favourites/recents CRUD; delta sync + tombstones + ack; optimistic versions; upgrade/link (email+password) merge. | Pending | Migrations, `library`/`sync` routes, merge logic, idempotency | Anonymous→upgrade preserves data; delta/tombstones/ack correct; last-write-wins | Planned |
+| **M3 — Search + hardening** | Postgres FTS/`pg_trgm`, ranking, quotas, observability, CI quality gates, swappable adapter readiness. | Pending | Search indexes/SQL, metrics/logging, Detekt/ktlint/CI, load/security tests | Search quality/perf; budget protected; health accurate; gates pass; no PII/token logs | Planned |
+
+### M0 — what was done (2026-11-07)
+
+- **Scaffolded `celestial-backend/`** (standalone Gradle, no Android changes): `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`, Gradle wrapper (`gradlew*`, `gradle/`), `.env.example`, `.gitignore`, `Dockerfile`, `docker-compose.yml` (Postgres 16-alpine + backend service on `app` profile, healthcheck).
+- **Migrations:** `src/main/resources/db/migration/V1__m0_auth.sql` — `pgcrypto`, `users` (anonymous/linked fields), `devices` (installation_id unique, secret hash, revoked_at), `refresh_tokens` (hash unique, expires/revoked/replaced_by, indexes).
+- **Config/DB:** `config/AppConfig.kt` (env-driven `PORT`, `DATABASE_*`, `JWT_*` incl. access 15m / refresh 30d defaults); `db/DatabaseFactory.kt` (Hikari + Flyway migrate + Exposed `Database.connect`).
+- **Errors:** `problem/Problem.kt` — RFC 9457 `ProblemResponse` + `ApiException` + helpers (`unauthorized`, `conflict`, `validation`, `internal`).
+- **Auth:** `auth/AuthModels.kt` (DTOs), `AuthTables.kt` (Exposed tables), `Security.kt` (SHA-256 hex hashing for device secret/refresh tokens), `JwtService.kt` (access/refresh JWT generation), `AuthService.kt` (register device+user+tokens, refresh rotation + revoke old, revoke by access token / device tokens).
+- **API routes:** `api/HealthRoutes.kt` (`GET /health`, `/ready` w/ DB check, `/version` = `0.1.0-m0`); `api/AuthRoutes.kt` (`POST /api/v1/auth/device/register` → 201, `/token/refresh` → 200, `/revoke` via Bearer access token → 200).
+- **App wiring:** `Application.kt` — Netty server, JSON (ignore unknown, encode defaults), `StatusPages` → `application/problem+json` for `ApiException`/unhandled, routing; `skipDb` flag for smoke tests.
+- **Tests:** `AppSmokeTest` (Ktor `testApplication`, `skipDb=true`) covers `/health`, `/version`, `/ready`; `AuthIntegrationTest` (Testcontainers Postgres) written for register+refresh flow — **not executed in this env (Docker unavailable)**.
+- **Not in M0 (by plan/docs):** `/auth/upgrade` (M2), catalog/Audius adapter (M1), library/sync (M2), OpenAPI generation/contract tests (M1/M3), enforced rate-limit/audit middleware, device-credential auth path beyond bootstrap tokens.
+
+### Deviations, gaps, and environment notes
+
+- Kotlin plugin **2.1.0** + Ktor **3.0.3** chosen for compile reliability here (doc 02 cites Kotlin 2.4.10 target) — pin/align when stabilized.
+- Build dir moved out of OneDrive-synced workspace to avoid Windows file locks.
+- **OpenAPI not yet generated** for implemented M0 endpoints — add with contract tests (doc 10/11).
+- **Docker/Testcontainers unavailable in this environment:** `docker compose up` and `AuthIntegrationTest` not run here; verify locally.
+- `/api/v1/auth/revoke` implemented as Bearer-access-token revoke of current device refresh tokens (minimal M0); refine scope/semantics with full session management as needed.
+
+### Rate-limit / budget defaults (confirmed 2026-11-07; configurable, not hardcoded)
+
+- **Global Audius/server budget:** 10 req/s, 500,000 req/month (shared upstream cap).
+- **Throttling:** token-bucket/rate-limiter per scope; RFC 9457 `429` + `Retry-After`. Enforce global budget before upstream call; per-user + per-device both apply where identity known.
+- **Per-device initial:** auth 10/min; search 30/min + burst 10; playback resolve 20/min + burst 5; library/sync writes 60/min.
+- **Per-user initial (authenticated):** search 60/min + burst 15; playback resolve 40/min + burst 10; library/sync writes 120/min.
+- **Config keys:** `RATE_LIMIT_*`, `AUDIUS_BUDGET_*` (env/config). Revisit after M3 load tests.
+
+### Decisions log (backend)
+
+- **2026-11-07 (confirmed):** `docs/backend/01–12` + PROGRESS authoritative; `docs/backend/00_BACKEND_CONCEPT.md` legacy/conflicting (on-device).
+- **2026-11-07 (confirmed):** Backend at `celestial-backend/` (repo root, standalone Gradle); no `app/`/Android frontend changes.
+- **2026-11-07 (confirmed):** Linked account = **email + password first** (Argon2id); Google Sign-In deferred.
+- **2026-11-07 (confirmed):** Playback delivery = short-lived stream URL/redirect metadata for client/Media3 direct fetch (no backend proxy yet).
+- **2026-11-07 (confirmed):** Conservative configurable rate-limit/budget defaults as above.
 
 ---
 
