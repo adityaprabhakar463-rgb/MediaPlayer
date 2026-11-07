@@ -1,9 +1,9 @@
-# Celestial — Frontend Design Documentation
+# Celestial — Design & Implementation Documentation
 
 **Product:** Celestial, a native Android space-themed media player  
 **Platform:** Android  
-**Implementation direction:** Kotlin + Jetpack Compose, with a real-time 3D scene integrated into the Compose UI  
-**Status:** Design vision and interaction requirements; visual details not explicitly decided are marked as proposals.
+**Implementation direction:** Kotlin + Jetpack Compose frontend, with a real-time 3D scene integrated into the Compose UI; remote backend as Ktor modular monolith + PostgreSQL serving a curated Audius catalog prototype (`docs/backend/01`–`12`, `PROGRESS.md`)  
+**Status:** Frontend phases 1–7 complete; backend docs written (`01`–`12` authoritative, `00` legacy); backend **M0 (skeleton + auth) complete** in `celestial-backend/` (2026-11-07), **M1 (catalog + Audius adapter) awaiting "go"**. Visual/product details not explicitly decided are marked as proposals/open decisions.
 
 ## Start here
 
@@ -31,6 +31,7 @@
 
 ## Backend documentation
 
+- `docs/backend/00_BACKEND_CONCEPT.md` — **legacy/conflicting** on-device concept (MediaStore/local). **Authoritative (confirmed 2026-11-07): `01`–`12` + `PROGRESS.md`** (remote Ktor/Postgres/curated Audius). Do not use `00` as source of truth.
 - `docs/backend/01_BACKEND_VISION_AND_SCOPE.md` — vision, goals, non-goals, locked decisions.
 - `docs/backend/02_ARCHITECTURE_AND_STACK.md` — Ktor modular monolith, modules, provider boundary.
 - `docs/backend/03_DOMAIN_AND_DATA_MODEL.md` — users, devices, tracks, playlists, favourites, recents, sync.
@@ -47,6 +48,7 @@
 
 ## Current Implementation Status
 
+### Frontend (Android, `app/`)
 - **Phase 1 — Design foundation:** Complete ✅ (Compose theme, glass surface primitives, design tokens, gallery component previews, Robolectric/Roborazzi screenshot testing)
 - **Phase 2 — Destination UI without 3D:** Complete ✅ (Playlists, Search w/ category filtering, All Songs, Albums, Artists, Favourites, Recently Played layouts, Settings floating panel, persistent mini player planet)
 - **Phase 3 — 3D scene foundation:** Complete ✅ (Real-time 3D solar system rendering engine in `scene/`, 800+ 3D starfield particles, central star with corona and solar flares, 7 3D destination planets, orbit camera w/ drag rotation inertia, pinch zoom, raycasting planet tap selection and approach transition)
@@ -55,6 +57,20 @@
 - **Phase 6 — First-launch formation:** Complete ✅ (Cinematic Big Bang, nebula dust, central star ignition, planet accretion sequence in `UniverseFormationSequence`, skip intro, and replay intro from Settings panel)
 - **Phase 7 — Refinement and quality:** Complete ✅ (Motion polish, reduced-effects mode support, accessibility TalkBack and touch targets audit, responsive adaptive grids, and 60 FPS Canvas performance optimizations)
 - **Client-Server Integration and Real Playback:** Complete ✅ (`CelestialApiClient` with persistent device identity, signed JWT access/refresh handling, catalog + search + playlists + favourites + recents sync in `LibraryStateHolder`, Audius stream resolution, and Media3/ExoPlayer playback in `PlayerController`). The debug workflow uses an automatic `adb reverse` tunnel; server-side library storage is currently in-memory and background playback is still open — see `docs/backend/13_CLIENT_INTEGRATION_AND_RUNTIME.md`.
+
+### Backend (remote server, curated Audius prototype, `celestial-backend/`)
+
+**Architecture (per `docs/backend/01`–`03,11`):** Ktor modular monolith (pure-Kotlin domain), REST `/api/v1/*`, OpenAPI intended as contract source of truth. Modules: `auth`, `catalog`, `library`, `audius-adapter`, `search`, `admin`. Provider boundary: `TrackSource` (`search`/`getTrack`/`resolveStream`) — Audius first, swappable. Backend never stores/transcodes/CDN audio and never persists long-lived stream URLs; playback resolves a **short-lived stream URL/redirect metadata** per play for client/Media3 direct fetch (confirmed). Curated verified artists only; client never calls Audius directly.
+
+**Stack (planned/M0 actual):** Ktor 3 + kotlinx.serialization, PostgreSQL + Flyway + Exposed + HikariCP, JWT access + rotated refresh (Argon2id planned for password upgrade), Docker Compose; RFC 9457 `application/problem+json`. M0 actuals: Kotlin 2.1.0 plugin + Ktor 3.0.3 + Gradle 8.10.2 wrapper (compile-reliability deviation from doc 02's 2.4.10 target — revisit).
+
+**Phases (M0–M3, `docs/backend/11`):**
+- **M0 — Skeleton + auth:** **Complete ✅ (2026-11-07).** `celestial-backend/` scaffolded (`build.gradle.kts`, wrapper, `.env.example`, `.gitignore`, `Dockerfile`, `docker-compose.yml` Postgres 16 + backend profile), `V1__m0_auth.sql` (users/devices/refresh_tokens), config/db/problem/auth/api. Endpoints: `/health,/ready,/version`; `POST /api/v1/auth/device/register` (201), `/auth/token/refresh` (rotation), `/auth/revoke` (Bearer access token). `AppSmokeTest` passed locally (`skipDb`); `AuthIntegrationTest` (Testcontainers) written, **skipped here (Docker unavailable)**. Deviations/gaps: OpenAPI/contract tests not generated yet; `/auth/upgrade` deferred to M2; rate-limit middleware not enforced yet. Details: `PROGRESS.md`.
+- **M1 — Catalog + Audius adapter:** awaiting "go". `TrackSource` + Audius impl, discovery-node failover, curated allowlist, search/track/playback resolution, availability filter (`is_streamable`, `is_available`, `!is_delete`), negative-cache TTL, server-side Audius budget (10 rps / 500k mo) + 429/`Retry-After`.
+- **M2 — Library + sync:** pending. Playlists/favourites/recents CRUD, delta sync + tombstones + ack, optimistic versions, anonymous→email+password upgrade/link merge (Argon2id).
+- **M3 — Search + hardening:** pending. Postgres FTS/`pg_trgm`, ranking, quotas, observability, CI quality gates, swappable adapter readiness.
+
+**Decisions (confirmed 2026-11-07):** authoritative = `docs/backend/01–12` + `PROGRESS.md` (`00` legacy); backend at `celestial-backend/`; email+password first (Google deferred); playback = short-lived URL/redirect metadata (no proxy yet); configurable rate-limit/budget defaults documented in `PROGRESS.md`.
 
 ## Important distinction
 
