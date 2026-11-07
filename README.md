@@ -26,6 +26,23 @@
 - `09_MOTION_AND_INTERACTION.md` — motion language, gestures, states and accessibility alternatives
 - `10_RESPONSIVE_ACCESSIBILITY_PERFORMANCE.md` — device adaptation, accessibility and performance
 - `11_FRONTEND_IMPLEMENTATION_GUIDE.md` — implementation sequence, acceptance criteria and handoff
+- `15_NAVIGATION_UX_AND_PLANET_LABELS.md` — navigation UX, planet labels, and accessible destination fallback
+- `16_LIGHTWEIGHT_PERFORMANCE.md` — lightweight, lag-free optimization without major changes
+
+## Backend documentation
+
+- `docs/backend/01_BACKEND_VISION_AND_SCOPE.md` — vision, goals, non-goals, locked decisions.
+- `docs/backend/02_ARCHITECTURE_AND_STACK.md` — Ktor modular monolith, modules, provider boundary.
+- `docs/backend/03_DOMAIN_AND_DATA_MODEL.md` — users, devices, tracks, playlists, favourites, recents, sync.
+- `docs/backend/04_API_CONTRACT.md` — REST v1 endpoints, pagination, errors, OpenAPI.
+- `docs/backend/05_AUTH_AND_SECURITY.md` — anonymous device auth, JWT rotation, upgrade/link, compliance.
+- `docs/backend/06_AUDIUS_INTEGRATION_AND_STREAMING.md` — Audius adapter, stream resolution, rate budget, availability filtering.
+- `docs/backend/07_SEARCH_AND_DISCOVERY.md` — curated catalog search, categories, suggestions.
+- `docs/backend/08_SYNC_AND_OFFLINE.md` — delta sync, tombstones, offline metadata cache.
+- `docs/backend/09_INFRASTRUCTURE_AND_DEPLOYMENT.md` — Docker Compose, CI/CD, backups, observability.
+- `docs/backend/10_TESTING_OBSERVABILITY_AND_QUALITY.md` — testing strategy, observability, quality gates.
+- `docs/backend/11_BACKEND_IMPLEMENTATION_GUIDE.md` — milestones M0–M3, sequencing with frontend, risks.
+- `docs/backend/12_CATALOG_OPERATIONS.md` — curated artist allowlist, takedown handling, audit.
 
 ## Current Implementation Status
 
