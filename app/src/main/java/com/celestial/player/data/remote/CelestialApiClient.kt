@@ -37,22 +37,20 @@ class ApiException(
 
 /**
  * Single HTTP entry point for the Android client.
- *
- * Responsibilities:
- *  - anonymous device bootstrap and token refresh (single-flight);
- *  - typed access to catalog, library and playback endpoints;
- *  - converting RFC 9457 problem responses into [ApiException].
- *
- * The base URL defaults to the emulator loopback bridge. Override it with
- * `-PcelestialApiBaseUrl=http://<host>:8080` for a physical device.
+ * Communicates with the Ktor backend and Audius adapter as specified in API contract.
  */
 class CelestialApiClient(
     context: Context,
     baseUrl: String = BuildConfig.CELESTIAL_API_BASE_URL,
 ) {
     val baseUrl: String = baseUrl.trimEnd('/')
-    private val session = SessionStore(context.applicationContext)
+    val sessionStore: SessionStore = SessionStore(context.applicationContext)
+    private val session = sessionStore
     private val authMutex = Mutex()
+
+    init {
+        session.audiusApiKey?.let { DirectAudiusClient.updateApiKey(it) }
+    }
 
     val deviceInstallationId: String get() = session.installationId
 
@@ -107,11 +105,32 @@ class CelestialApiClient(
     suspend fun fetchCatalog(): CatalogSnapshotDto =
         client.get("$baseUrl/api/v1/catalog").decodeOrThrow()
 
-    suspend fun searchCatalog(query: String): SearchResponseDto =
+    suspend fun searchCatalog(query: String): SearchResponseDto = runCatching {
         client.get("$baseUrl/api/v1/catalog/search") {
             parameter("q", query)
             parameter("limit", 50)
-        }.decodeOrThrow()
+        }.decodeOrThrow<SearchResponseDto>()
+    }.getOrElse {
+        val remoteTracks = DirectAudiusClient.searchTracks(query)
+        SearchResponseDto(
+            query = query,
+            tracks = remoteTracks.map { track ->
+                TrackDto(
+                    id = track.id.value,
+                    title = track.title,
+                    artistId = track.artistId.value,
+                    artistName = track.artistName,
+                    albumId = track.albumId.value,
+                    albumTitle = track.albumTitle,
+                    trackIndex = track.trackIndex,
+                    durationMs = track.durationMs,
+                    artworkUrl = null,
+                )
+            },
+            albums = emptyList(),
+            artists = emptyList(),
+        )
+    }
 
     suspend fun getPlaylists(): List<PlaylistDto> = authRequest { token ->
         client.get("$baseUrl/api/v1/library/playlists") {
@@ -187,12 +206,16 @@ class CelestialApiClient(
         }
     }
 
-    suspend fun resolveStreamUrl(trackId: String): PlaybackResponse =
+    suspend fun resolveStreamUrl(trackId: String): PlaybackResponse = runCatching {
         authRequest { token ->
             client.get("$baseUrl/api/v1/catalog/playback/$trackId") {
                 bearer(token)
-            }.decodeOrThrow()
+            }.decodeOrThrow<PlaybackResponse>()
         }
+    }.getOrElse {
+        val directUrl = DirectAudiusClient.resolveDirectStreamUrl(trackId)
+        PlaybackResponse(trackId = trackId, streamUrl = directUrl, provider = "audius_direct")
+    }
 
     fun currentUserId(): String? = session.userId
 

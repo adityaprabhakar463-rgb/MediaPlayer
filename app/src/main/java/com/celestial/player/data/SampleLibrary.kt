@@ -12,11 +12,13 @@ import com.celestial.player.domain.model.TrackId
 object SampleLibrary {
 
     private val artistSeeds = listOf(
-        Artist(ArtistId("artist-nova"), "Nova Vale"),
-        Artist(ArtistId("artist-echo"), "Echo Kaspar"),
-        Artist(ArtistId("artist-lyra"), "Lyra Fenn"),
-        Artist(ArtistId("artist-orion"), "Orion Marlow"),
-        Artist(ArtistId("artist-solene"), "Solène Dray"),
+        Artist(ArtistId("artist-nebula-pulse"), "Nebula Pulse"),
+        Artist(ArtistId("artist-otto-tao"), "OttoTAO"),
+        Artist(ArtistId("artist-lunaress"), "Lunaress"),
+        Artist(ArtistId("artist-dean-evenson"), "Dean Evenson"),
+        Artist(ArtistId("artist-tutara-peak"), "Tutara Peak"),
+        Artist(ArtistId("artist-blue-tree-audio"), "BlueTreeAudio"),
+        Artist(ArtistId("artist-eddie-edditter"), "eddie edditter"),
     )
 
     private data class SeedAlbum(
@@ -29,70 +31,72 @@ object SampleLibrary {
 
     private val seedAlbums = listOf(
         SeedAlbum(
-            "album-pulse", "Stellar Pulse", "artist-nova", 0x2F6FEF,
+            "album-zero-gravity", "Zero Gravity", "artist-nebula-pulse", 0x3F51B5,
             listOf(
-                "Ignition Waltz" to 214_000L,
-                "First Light" to 187_500L,
-                "Corona Drift" to 246_000L,
-                "Solar Wind Sway" to 221_000L,
+                "Hibernation Chamber" to 239_000L,
+                "Lost Transmission" to 233_000L,
+                "Orbital Lullaby" to 227_000L,
+                "Echoes Beyond Neptune" to 240_000L,
             ),
         ),
         SeedAlbum(
-            "album-singularity", "Singularity", "artist-nova", 0x7773C9,
+            "album-tao", "Meditation in the Tao", "artist-otto-tao", 0x8BAFCB,
             listOf(
-                "Event Horizon" to 208_000L,
-                "Blue Shift" to 249_500L,
-                "Escape Velocity" to 187_000L,
+                "The Stillness Between the Stars" to 240_000L,
+                "Whispers of the Tao" to 240_000L,
+                "Emptiness of the Mountain" to 239_000L,
             ),
         ),
         SeedAlbum(
-            "album-tidlocke", "Tidal Lock", "artist-echo", 0x3F51B5,
+            "album-celestial-drift", "Celestial Drift", "artist-lunaress", 0x9C27B0,
             listOf(
-                "Same Face Forever" to 236_000L,
-                "Gravity Well" to 201_400L,
-                "Meridian Hum" to 178_900L,
-                "Orbit Decay" to 258_200L,
+                "Stellar Veil" to 240_000L,
+                "Starlight Fade" to 137_000L,
+                "Nebula Nights" to 147_000L,
+                "Galactic Haze" to 220_000L,
             ),
         ),
         SeedAlbum(
-            "album-mist", "Nebula Mist", "artist-echo", 0x8BAFCB,
+            "album-dream-space", "Dream Space", "artist-dean-evenson", 0x00BCD4,
             listOf(
-                "Dust Lane" to 222_300L,
-                "Hydrogen Bloom" to 195_000L,
-                "Star Nursery" to 233_800L,
+                "Touching Infinity" to 438_000L,
+                "Inner Light" to 339_000L,
+                "Dream Space" to 333_000L,
             ),
         ),
         SeedAlbum(
-            "album-crystal", "Crystal Coma", "artist-lyra", 0x9C27B0,
+            "album-nescient-mind", "Of the Nescient Mind", "artist-tutara-peak", 0x7773C9,
             listOf(
-                "Silent Aurora" to 241_000L,
-                "Frost Giant" to 210_650L,
-                "Mirror Moons" to 186_200L,
+                "Gold In Autumn" to 294_000L,
+                "Orbit w/ Winifred" to 227_000L,
+                "Float" to 284_000L,
+                "Wind Atlas w/ Flaws" to 241_000L,
             ),
         ),
         SeedAlbum(
-            "album-frost", "Frozen Halo", "artist-orion", 0x00BCD4,
+            "album-chill-lounge", "Chill Lounge", "artist-blue-tree-audio", 0x2F6FEF,
             listOf(
-                "Comet Tail" to 197_400L,
-                "Perihelion" to 224_100L,
-                "Ice Field" to 213_700L,
-                "Long Night" to 262_000L,
+                "Lounge" to 224_000L,
+                "Relaxing" to 246_000L,
+                "Deep Relax" to 480_000L,
             ),
         ),
         SeedAlbum(
-            "album-violetdusk", "Violet Dusk", "artist-solene", 0x7E57C2,
+            "album-centauria", "Centauria Skyline", "artist-eddie-edditter", 0x7E57C2,
             listOf(
-                "Dusk Dancer" to 228_000L,
-                "Twilight Lantern" to 201_300L,
-                "Slow Collapse" to 254_600L,
+                "044B Adventures" to 127_000L,
+                "Bossa di Orione" to 137_000L,
+                "OKB Retrofuturistic Version" to 199_000L,
+                "Les Pionniers de l’Espace" to 167_000L,
             ),
         ),
         SeedAlbum(
-            "album-ashes", "Ashes of Giants", "artist-solene", 0xEF6C00,
+            "album-by-yourself", "By Yourself, Boy", "artist-tutara-peak", 0xEF6C00,
             listOf(
-                "Red Giant Rhyme" to 219_000L,
-                "Nova Ash" to 186_400L,
-                "White Dwarf Lullaby" to 247_200L,
+                "Crop Circles" to 170_000L,
+                "Telescope" to 185_000L,
+                "Picture of Me" to 214_000L,
+                "Bonfire" to 218_000L,
             ),
         ),
     )

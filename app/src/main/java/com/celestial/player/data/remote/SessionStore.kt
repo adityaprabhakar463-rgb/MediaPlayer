@@ -33,6 +33,18 @@ class SessionStore(context: Context) {
     var userId: String? = prefs.getString(KEY_USER_ID, null)
         private set
 
+    var audiusApiKey: String? = prefs.getString(KEY_AUDIUS_API_KEY, null)
+        private set
+
+    @Synchronized
+    fun saveAudiusApiKey(key: String?) {
+        audiusApiKey = key?.trim()?.ifBlank { null }
+        prefs.edit {
+            if (audiusApiKey != null) putString(KEY_AUDIUS_API_KEY, audiusApiKey)
+            else remove(KEY_AUDIUS_API_KEY)
+        }
+    }
+
     @Synchronized
     fun save(auth: AuthResponseDto) {
         accessToken = auth.accessToken
@@ -64,5 +76,6 @@ class SessionStore(context: Context) {
         const val KEY_ACCESS_TOKEN = "access_token"
         const val KEY_REFRESH_TOKEN = "refresh_token"
         const val KEY_USER_ID = "user_id"
+        const val KEY_AUDIUS_API_KEY = "audius_api_key"
     }
 }

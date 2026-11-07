@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.setValue
 import com.celestial.player.data.remote.ApiException
 import com.celestial.player.data.remote.CelestialApiClient
+import com.celestial.player.data.remote.DirectAudiusClient
 import com.celestial.player.data.remote.toDomain
 import com.celestial.player.domain.model.Album
 import com.celestial.player.domain.model.Artist
@@ -101,7 +102,27 @@ class LibraryStateHolder(
 
         coroutineScope.launch {
             try {
-                if (!apiClient.checkHealth()) {
+                var healthy = false
+                repeat(3) { attempt ->
+                    if (apiClient.checkHealth()) {
+                        healthy = true
+                        return@repeat
+                    }
+                    if (attempt < 2) {
+                        delay(500)
+                    }
+                }
+                if (!healthy) {
+                    val audiusHealthy = DirectAudiusClient.checkHealth()
+                    if (audiusHealthy) {
+                        backendStatus = BackendStatus.Online
+                        backendStatusText = "Online · Audius Direct"
+                        lastSyncError = null
+                        retryAttempt = 0
+                        retryJob?.cancel()
+                        retryJob = null
+                        return@launch
+                    }
                     markOffline("Server unreachable")
                     scheduleRetry()
                     return@launch
@@ -129,8 +150,15 @@ class LibraryStateHolder(
                 flushPendingWork()
             } catch (e: Exception) {
                 Log.w(TAG, "Sync failed", e)
-                markOffline(e.readableMessage())
-                scheduleRetry()
+                val audiusHealthy = DirectAudiusClient.checkHealth()
+                if (audiusHealthy) {
+                    backendStatus = BackendStatus.Online
+                    backendStatusText = "Online · Audius Direct"
+                    lastSyncError = null
+                } else {
+                    markOffline(e.readableMessage())
+                    scheduleRetry()
+                }
             } finally {
                 isSyncing = false
             }
@@ -271,13 +299,16 @@ class LibraryStateHolder(
     }
 
     suspend fun remoteSearch(query: String): List<Track> {
-        if (!isBackendConnected || query.trim().length < 2) return localSearch(query)
-        return runCatching {
-            apiClient.searchCatalog(query.trim()).tracks.map { it.toDomain() }
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return localSearch(query)
+        val remote = runCatching {
+            apiClient.searchCatalog(trimmed).tracks.map { it.toDomain() }
         }.getOrElse {
-            Log.d(TAG, "Search fallback: ${it.readableMessage()}")
-            localSearch(query)
+            com.celestial.player.data.remote.DirectAudiusClient.searchTracks(trimmed)
         }
+        val local = localSearch(query)
+        val combined = (local + remote).distinctBy { it.id }
+        return combined.ifEmpty { local }
     }
 
     private fun applyCatalog(snapshot: com.celestial.player.data.remote.CatalogSnapshotDto) {

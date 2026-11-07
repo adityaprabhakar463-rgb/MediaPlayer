@@ -9,8 +9,11 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,9 +38,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.material3.Text
+import com.celestial.player.ui.components.glass.GlassSearchField
 import com.celestial.player.data.BackendStatus
 import com.celestial.player.data.LibraryStateHolder
 import com.celestial.player.domain.model.Track
@@ -77,6 +86,8 @@ fun CelestialAppShell(
     val universeSceneState = remember { UniverseSceneState() }
     var settingsOpen by remember { mutableStateOf(false) }
     var planetHintVisible by remember { mutableStateOf(false) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var currentApiKey by remember { mutableStateOf(library.apiClient.sessionStore.audiusApiKey) }
 
     val playerController = remember(context, scope, library.apiClient) {
         PlayerController(
@@ -109,8 +120,10 @@ fun CelestialAppShell(
         prefs.edit().putBoolean("intro_completed", true).apply()
     }
 
-    BackHandler(enabled = settingsOpen || !nav.isAtRoot() || showFormation) {
-        if (showFormation) {
+    BackHandler(enabled = showApiKeyDialog || settingsOpen || !nav.isAtRoot() || showFormation) {
+        if (showApiKeyDialog) {
+            showApiKeyDialog = false
+        } else if (showFormation) {
             dismissFormation()
         } else if (settingsOpen) {
             settingsOpen = false
@@ -201,9 +214,84 @@ fun CelestialAppShell(
                         apiBaseUrl = library.apiClient.baseUrl,
                         isSyncing = library.isSyncing,
                         onSync = { library.sync(manual = true) },
+                        audiusApiKey = currentApiKey,
+                        onOpenApiKeyDialog = { showApiKeyDialog = true },
                     ),
                     onDismiss = { settingsOpen = false },
                 )
+            }
+        }
+
+        if (showApiKeyDialog) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(6f)
+                    .background(CelestialTheme.colors.spaceVoid.copy(alpha = 0.75f))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showApiKeyDialog = false },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                var inputKey by remember {
+                    mutableStateOf(TextFieldValue(currentApiKey ?: ""))
+                }
+                val colors = CelestialTheme.colors
+                val spacing = CelestialTheme.spacing
+                CelestialGlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = {},
+                        ),
+                    shape = MaterialTheme.shapes.large,
+                ) {
+                    Column(modifier = Modifier.padding(spacing.lg)) {
+                        Text(
+                            text = "Audius API Key",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = colors.starlight,
+                        )
+                        Spacer(modifier = Modifier.height(spacing.sm))
+                        Text(
+                            text = "Ensures seamless, direct music streaming from Audius anywhere on phone with higher rate limits.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.moonlight,
+                        )
+                        Spacer(modifier = Modifier.height(spacing.md))
+                        GlassSearchField(
+                            value = inputKey,
+                            onValueChange = { inputKey = it },
+                            placeholder = "Paste Audius API Key...",
+                            hint = "Audius API Key",
+                        )
+                        Spacer(modifier = Modifier.height(spacing.lg))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(onClick = { showApiKeyDialog = false }) {
+                                Text("Cancel", color = colors.moonlight)
+                            }
+                            Spacer(modifier = Modifier.width(spacing.sm))
+                            Button(
+                                onClick = {
+                                    val key = inputKey.text.trim().ifBlank { null }
+                                    library.apiClient.sessionStore.saveAudiusApiKey(key)
+                                    com.celestial.player.data.remote.DirectAudiusClient.updateApiKey(key)
+                                    currentApiKey = key
+                                    showApiKeyDialog = false
+                                },
+                            ) {
+                                Text("Save Key")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -241,6 +329,8 @@ private fun settingsSections(
     apiBaseUrl: String,
     isSyncing: Boolean,
     onSync: () -> Unit,
+    audiusApiKey: String?,
+    onOpenApiKeyDialog: () -> Unit,
 ): List<SettingsSection> = listOf(
     SettingsSection(
         title = "Universe",
@@ -250,6 +340,24 @@ private fun settingsSections(
                 description = "Calms ambient stars, comets and motion",
                 checked = reducedEffects,
                 onCheckedChange = onReducedEffectsChange,
+            ),
+        ),
+    ),
+    SettingsSection(
+        title = "Audius streaming",
+        entries = listOf(
+            SettingsEntryValue.Info(
+                label = "Direct streaming",
+                description = "Streams tracks directly from Audius decentralized nodes",
+                trailing = "Active",
+                enabled = true,
+            ),
+            SettingsEntryValue.Info(
+                label = "Audius API key",
+                description = audiusApiKey?.let { "${it.take(4)}••••${it.takeLast(4)}" } ?: "Public tier (Tap to enter key)",
+                trailing = if (audiusApiKey.isNullOrBlank()) "Set" else "Change",
+                enabled = true,
+                onClick = onOpenApiKeyDialog,
             ),
         ),
     ),
@@ -266,9 +374,9 @@ private fun settingsSections(
             SettingsEntryValue.Info(
                 label = "Connection mode",
                 description = when (backendStatus) {
-                    BackendStatus.Online -> "Live library · playlists, favourites and recents synced"
+                    BackendStatus.Online -> "Online (Direct Audius streaming enabled)"
                     BackendStatus.Checking -> "Checking backend availability"
-                    BackendStatus.Offline -> "Offline library · changes retry when the server returns"
+                    BackendStatus.Offline -> "Offline (Direct streaming active when connected)"
                 },
                 trailing = when (backendStatus) {
                     BackendStatus.Online -> "Online"

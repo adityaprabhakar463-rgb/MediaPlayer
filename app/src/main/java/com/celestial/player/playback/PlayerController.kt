@@ -223,33 +223,26 @@ class PlayerController(
     }
 
     /**
-     * Resolves a short-lived stream URL through the backend, then hands it to Media3. The backend
-     * owns the provider mapping; the client never talks to Audius directly. Fallback gracefully
-     * to local simulation mode if offline or backend provider unmapped.
+     * Resolves a stream URL through the backend first. If backend is offline or returns an error,
+     * immediately falls back to direct Audius API stream resolution so songs play anywhere on phone.
      */
     private fun resolveStream(track: Track) {
         resolveJob?.cancel()
         resolveJob = coroutineScope.launch {
             state = state.copy(isResolvingStream = true, playbackError = null)
-            runCatching { apiClient.resolveStreamUrl(track.id.value) }
-                .onSuccess { playback ->
-                    if (state.currentTrack?.id != track.id) return@launch
-                    state = state.copy(
-                        streamUrl = playback.streamUrl,
-                        streamProvider = playback.provider,
-                        isResolvingStream = false,
-                    )
-                    audioEngine.load(playback.streamUrl, playWhenReady = state.isPlaying)
+            val streamUrl = runCatching { apiClient.resolveStreamUrl(track.id.value).streamUrl }
+                .getOrElse {
+                    Log.i(TAG, "Backend unreachable. Resolving stream directly from Audius: ${track.title}")
+                    com.celestial.player.data.remote.DirectAudiusClient.resolveDirectStreamUrl(track.id.value)
                 }
-                .onFailure { error ->
-                    if (state.currentTrack?.id != track.id) return@launch
-                    Log.i(TAG, "Backend stream unmapped or offline (${error.message}); using local engine mode.")
-                    state = state.copy(
-                        isBuffering = false,
-                        isResolvingStream = false,
-                        playbackError = null,
-                    )
-                }
+
+            if (state.currentTrack?.id != track.id) return@launch
+            state = state.copy(
+                streamUrl = streamUrl,
+                streamProvider = "audius",
+                isResolvingStream = false,
+            )
+            audioEngine.load(streamUrl, playWhenReady = state.isPlaying)
         }
     }
 
