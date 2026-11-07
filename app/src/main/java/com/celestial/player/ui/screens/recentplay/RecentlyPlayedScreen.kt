@@ -20,6 +20,7 @@ fun RecentlyPlayedScreen(
     currentTrackId: com.celestial.player.domain.model.TrackId?,
     colorSeedFor: (Track) -> Int,
     onPlay: (Track, List<Track>) -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val playedTracks = recentlyPlayed.mapNotNull { trackFor(it.trackId) }
@@ -28,11 +29,12 @@ fun RecentlyPlayedScreen(
         title = "Recently Played",
         subtitle = if (playedTracks.isEmpty()) "Nothing in the log yet" else "${playedTracks.size} entries",
         modifier = modifier,
+        onBack = onBack,
     ) {
         if (playedTracks.isEmpty()) {
             GlassEmptyState(
                 title = "Nothing played yet",
-                description = "Songs you play appear here with when you last touched them.",
+                description = "Songs you play appear here when you last touched them.",
                 icon = Icons.Filled.History,
             )
         } else {

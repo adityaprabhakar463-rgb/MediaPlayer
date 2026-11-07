@@ -10,6 +10,10 @@
 - All timestamps ISO-8601 UTC.
 - Auth: Bearer access token in `Authorization` header; anonymous device auth via `X-Device-Id` / `X-Device-Secret` until upgraded.
 
+> **Implementation status:** the first connected slice is documented in
+> `13_CLIENT_INTEGRATION_AND_RUNTIME.md`. Endpoints marked “upgrade”, Postgres FTS and rate-limit
+> enforcement are not wired yet.
+
 ## Endpoints
 
 ### Auth

@@ -95,6 +95,7 @@ fun CreatePlaylistAction(
             GlassIconButton(
                 icon = Icons.Filled.Check,
                 contentDescription = "Save playlist",
+                enabled = name.text.isNotBlank(),
                 onClick = { if (name.text.isNotBlank()) onCreate(name.text.trim()) },
             )
         }

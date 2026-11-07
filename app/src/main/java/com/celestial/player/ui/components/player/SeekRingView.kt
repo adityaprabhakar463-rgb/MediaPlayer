@@ -19,8 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,6 +52,16 @@ fun SeekRingView(
             .semantics {
                 contentDescription = "Orbital Seek Ring"
                 stateDescription = "Position ${secondsStr}s of ${durationMs / 1000}s"
+                if (durationMs > 0L) {
+                    progressBarRangeInfo = ProgressBarRangeInfo(
+                        current = effectiveFraction,
+                        range = 0f..1f,
+                    )
+                    setProgress { target ->
+                        onSeekTo((target.coerceIn(0f, 1f) * durationMs).toLong())
+                        true
+                    }
+                }
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -92,35 +105,39 @@ fun SeekRingView(
             )
 
             val sweepAngle = 360f * effectiveFraction
-            drawArc(
-                brush = Brush.sweepGradient(
-                    colors = listOf(
-                        ringColor.copy(alpha = 0.6f),
-                        glowColor,
-                        ringColor,
+            if (durationMs > 0L && sweepAngle > 0.5f) {
+                drawArc(
+                    brush = Brush.sweepGradient(
+                        colors = listOf(
+                            ringColor.copy(alpha = 0.6f),
+                            glowColor,
+                            ringColor,
+                        ),
+                        center = center,
                     ),
-                    center = center,
-                ),
-                startAngle = -90f,
-                sweepAngle = sweepAngle,
-                useCenter = false,
-                style = Stroke(width = strokeWidthPx * 1.5f, cap = StrokeCap.Round),
-            )
+                    startAngle = -90f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidthPx * 1.5f, cap = StrokeCap.Round),
+                )
+            }
 
-            val tipAngleRad = Math.toRadians((-90f + sweepAngle).toDouble())
-            val tipX = center.x + ringRadius * kotlin.math.cos(tipAngleRad).toFloat()
-            val tipY = center.y + ringRadius * kotlin.math.sin(tipAngleRad).toFloat()
+            if (durationMs > 0L && effectiveFraction > 0f) {
+                val tipAngleRad = Math.toRadians((-90f + sweepAngle).toDouble())
+                val tipX = center.x + ringRadius * kotlin.math.cos(tipAngleRad).toFloat()
+                val tipY = center.y + ringRadius * kotlin.math.sin(tipAngleRad).toFloat()
 
-            drawCircle(
-                color = glowColor,
-                radius = strokeWidthPx * 2.2f,
-                center = Offset(tipX, tipY),
-            )
-            drawCircle(
-                color = Color.White,
-                radius = strokeWidthPx * 1.1f,
-                center = Offset(tipX, tipY),
-            )
+                drawCircle(
+                    color = glowColor,
+                    radius = strokeWidthPx * 2.2f,
+                    center = Offset(tipX, tipY),
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = strokeWidthPx * 1.1f,
+                    center = Offset(tipX, tipY),
+                )
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.roborazzi)
 }
 
@@ -14,6 +15,12 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+
+        // The ADB reverse tunnel is the reliable default: it works on emulators and USB devices and
+        // is not affected by the host firewall. Override for a Wi-Fi device on the same network.
+        val apiBaseUrl = (project.findProperty("celestialApiBaseUrl") as String?)
+            ?: "http://127.0.0.1:8080"
+        buildConfigField("String", "CELESTIAL_API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -34,6 +41,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
@@ -41,6 +49,30 @@ android {
             isIncludeAndroidResources = true
         }
     }
+}
+
+val adbExecutable: String = run {
+    val sdkRoots = listOfNotNull(
+        System.getenv("ANDROID_HOME"),
+        System.getenv("ANDROID_SDK_ROOT"),
+        "${System.getProperty("user.home")}/Library/Android/sdk",
+    )
+    sdkRoots
+        .map { file("$it/platform-tools/adb") }
+        .firstOrNull { it.exists() }
+        ?.absolutePath
+        ?: "adb"
+}
+
+val adbReverse = tasks.register<Exec>("adbReverse") {
+    group = "celestial"
+    description = "Maps the device's localhost:8080 to the host backend over ADB."
+    commandLine(adbExecutable, "reverse", "tcp:8080", "tcp:8080")
+    isIgnoreExitValue = true
+}
+
+tasks.matching { it.name == "installDebug" }.configureEach {
+    dependsOn(adbReverse)
 }
 
 tasks.withType<Test>().configureEach {
@@ -75,4 +107,10 @@ dependencies {
     testImplementation(libs.androidx.test.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.roborazzi)
+
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.androidx.media3.exoplayer)
 }

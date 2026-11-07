@@ -19,12 +19,14 @@ import com.celestial.player.ui.theme.CelestialTheme
 fun ArtistsScreen(
     artists: List<Artist>,
     onOpenArtist: (Artist) -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     DestinationScreen(
         title = "Artists",
         subtitle = "${artists.size} performers",
         modifier = modifier,
+        onBack = onBack,
     ) {
         LazyColumn(
             contentPadding = PaddingValues(bottom = 120.dp),

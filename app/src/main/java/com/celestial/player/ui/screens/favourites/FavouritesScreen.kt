@@ -23,17 +23,20 @@ fun FavouritesScreen(
     colorSeedFor: (Track) -> Int,
     onPlay: (Track, List<Track>) -> Unit,
     onToggleFavourite: (Track) -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     DestinationScreen(
         title = "Favourites",
         subtitle = if (tracks.isEmpty()) "Nothing marked yet" else "${tracks.size} marked with a heart",
         modifier = modifier,
+        onBack = onBack,
         actions = {
             if (tracks.size > 1) {
                 GlassIconButton(
                     icon = Icons.Filled.Shuffle,
                     contentDescription = "Shuffle favourites",
+                    stateDescription = "Shuffle favourites",
                     onClick = { tracks.randomOrNull()?.let { onPlay(it, tracks) } },
                 )
             }

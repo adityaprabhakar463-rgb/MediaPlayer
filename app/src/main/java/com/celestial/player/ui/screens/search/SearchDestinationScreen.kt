@@ -58,12 +58,21 @@ fun SearchDestinationScreen(
     onOpenAlbum: ((Album) -> Unit)? = null,
     onOpenArtist: ((Artist) -> Unit)? = null,
     onOpenPlaylist: ((Playlist) -> Unit)? = null,
+    onSearch: (suspend (String) -> List<Track>)? = null,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf(TextFieldValue("")) }
     var debouncedQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(SearchCategory.Songs) }
     val recentSearches = remember { mutableStateListOf<String>() }
+    var remoteTracks by remember { mutableStateOf<List<Track>?>(null) }
+
+    LaunchedEffect(debouncedQuery) {
+        remoteTracks = null
+        if (debouncedQuery.trim().length < 2 || onSearch == null) return@LaunchedEffect
+        remoteTracks = onSearch(debouncedQuery)
+    }
 
     LaunchedEffect(query.text) {
         if (query.text == debouncedQuery) return@LaunchedEffect
@@ -76,13 +85,16 @@ fun SearchDestinationScreen(
         }
     }
 
-    val queryTracks = remember(debouncedQuery, sampleTracks) {
-        if (debouncedQuery.isBlank()) emptyList() else
-            sampleTracks.filter {
+    val queryTracks = remember(debouncedQuery, sampleTracks, remoteTracks) {
+        if (debouncedQuery.isBlank()) {
+            emptyList()
+        } else {
+            remoteTracks ?: sampleTracks.filter {
                 it.title.contains(debouncedQuery, ignoreCase = true) ||
                     it.artistName.contains(debouncedQuery, ignoreCase = true) ||
                     it.albumTitle.contains(debouncedQuery, ignoreCase = true)
             }
+        }
     }
 
     val queryAlbums = remember(debouncedQuery, sampleAlbums) {
@@ -111,6 +123,7 @@ fun SearchDestinationScreen(
         title = "Search",
         subtitle = "Find songs, albums, artists and playlists",
         modifier = modifier,
+        onBack = onBack,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(CelestialTheme.spacing.md)) {
             GlassSearchField(

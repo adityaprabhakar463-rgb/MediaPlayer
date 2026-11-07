@@ -32,12 +32,14 @@ import com.celestial.player.ui.theme.CelestialTheme
 fun AlbumsScreen(
     albums: List<Album>,
     onOpenAlbum: (Album) -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     DestinationScreen(
         title = "Albums",
         subtitle = "${albums.size} collections",
         modifier = modifier,
+        onBack = onBack,
     ) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),

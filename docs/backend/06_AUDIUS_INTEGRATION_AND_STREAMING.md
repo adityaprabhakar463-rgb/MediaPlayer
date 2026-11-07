@@ -1,5 +1,11 @@
 # Backend 06 — Audius Integration and Streaming
 
+> **Implementation status (2026-11-06):** the adapter is wired. The curated catalog carries a
+> Celestial-id → Audius-id map, playback returns the Audius stream endpoint, and the Android client
+> consumes it through Media3/ExoPlayer. Search/fetch helpers exist in `AudiusAdapter`; the curated
+> catalog is currently static rather than refreshed automatically. The shared rate budget is not
+> throttled yet.
+
 ## Why Audius
 
 Only free option found that returns actual full-length stream URLs. Spotify/Deezer/iTunes give metadata plus 30-second previews at best; Audius hosts recordings under artist-granted terms.

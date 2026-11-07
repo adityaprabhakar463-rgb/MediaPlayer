@@ -43,6 +43,7 @@
 - `docs/backend/10_TESTING_OBSERVABILITY_AND_QUALITY.md` — testing strategy, observability, quality gates.
 - `docs/backend/11_BACKEND_IMPLEMENTATION_GUIDE.md` — milestones M0–M3, sequencing with frontend, risks.
 - `docs/backend/12_CATALOG_OPERATIONS.md` — curated artist allowlist, takedown handling, audit.
+- `docs/backend/13_CLIENT_INTEGRATION_AND_RUNTIME.md` — what is wired end-to-end, local run instructions, sync semantics, and known gaps.
 
 ## Current Implementation Status
 
@@ -53,6 +54,7 @@
 - **Phase 5 — Now Playing signature controls:** Complete ✅ (3D album artwork planet, orbital interactive seek ring, UFO play/pause control w/ illuminated engine beam, 3D asteroid previous/next controls w/ impact animation, queue drawer, shuffle, repeat, and favourite controls)
 - **Phase 6 — First-launch formation:** Complete ✅ (Cinematic Big Bang, nebula dust, central star ignition, planet accretion sequence in `UniverseFormationSequence`, skip intro, and replay intro from Settings panel)
 - **Phase 7 — Refinement and quality:** Complete ✅ (Motion polish, reduced-effects mode support, accessibility TalkBack and touch targets audit, responsive adaptive grids, and 60 FPS Canvas performance optimizations)
+- **Client-Server Integration and Real Playback:** Complete ✅ (`CelestialApiClient` with persistent device identity, signed JWT access/refresh handling, catalog + search + playlists + favourites + recents sync in `LibraryStateHolder`, Audius stream resolution, and Media3/ExoPlayer playback in `PlayerController`). The debug workflow uses an automatic `adb reverse` tunnel; server-side library storage is currently in-memory and background playback is still open — see `docs/backend/13_CLIENT_INTEGRATION_AND_RUNTIME.md`.
 
 ## Important distinction
 

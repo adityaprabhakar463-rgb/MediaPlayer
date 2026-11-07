@@ -140,13 +140,30 @@ fun NowPlayingScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 color = CelestialTheme.colors.starlight,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
             Text(
                 text = if (track != null) "${track.artistName} · ${track.albumTitle}" else "Celestial Player",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CelestialTheme.colors.moonlight,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
+            val streamLabel = when {
+                state.isResolvingStream -> "Resolving stream…"
+                state.playbackError != null -> "Playback error · ${state.playbackError}"
+                state.streamUrl != null && state.streamProvider == "audius" -> "Streaming via Audius"
+                state.streamUrl != null -> "Streaming via Celestial"
+                else -> null
+            }
+            if (streamLabel != null) {
+                Text(
+                    text = streamLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CelestialTheme.colors.moonlight.copy(alpha = 0.8f),
+                    maxLines = 1,
+                )
+            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -189,6 +206,8 @@ fun NowPlayingScreen(
                 GlassIconButton(
                     icon = Icons.Filled.Shuffle,
                     contentDescription = "Shuffle",
+                    selected = state.shuffleEnabled,
+                    stateDescription = if (state.shuffleEnabled) "On" else "Off",
                     onClick = onToggleShuffle,
                 )
                 GlassIconButton(
@@ -196,7 +215,13 @@ fun NowPlayingScreen(
                         RepeatMode.One -> Icons.Filled.RepeatOne
                         else -> Icons.Filled.Repeat
                     },
-                    contentDescription = "Repeat mode ${state.repeatMode.name}",
+                    contentDescription = "Repeat",
+                    selected = state.repeatMode != RepeatMode.Off,
+                    stateDescription = when (state.repeatMode) {
+                        RepeatMode.Off -> "Off"
+                        RepeatMode.All -> "All tracks"
+                        RepeatMode.One -> "This track"
+                    },
                     onClick = onCycleRepeat,
                 )
             }
