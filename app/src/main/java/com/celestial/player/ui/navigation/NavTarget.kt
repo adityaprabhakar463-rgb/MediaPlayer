@@ -1,8 +1,6 @@
 package com.celestial.player.ui.navigation
 
 import androidx.compose.runtime.mutableStateListOf
-import com.celestial.player.domain.model.AlbumId
-import com.celestial.player.domain.model.ArtistId
 import com.celestial.player.domain.model.PlaylistId
 
 sealed interface NavTarget {
@@ -10,14 +8,10 @@ sealed interface NavTarget {
     data object Playlists : NavTarget
     data object Search : NavTarget
     data object AllSongs : NavTarget
-    data object Albums : NavTarget
-    data object Artists : NavTarget
     data object Favourites : NavTarget
     data object RecentlyPlayed : NavTarget
     data object NowPlaying : NavTarget
     data class PlaylistDetail(val playlistId: PlaylistId) : NavTarget
-    data class AlbumDetail(val albumId: AlbumId) : NavTarget
-    data class ArtistDetail(val artistId: ArtistId) : NavTarget
 }
 
 class CelestialNavState {

@@ -29,6 +29,7 @@ fun GlassTrackRow(
             GlassArtwork(
                 size = 48.dp,
                 colorSeed = colorSeed,
+                imagePath = track.artworkPath,
             )
         },
         trailing = {

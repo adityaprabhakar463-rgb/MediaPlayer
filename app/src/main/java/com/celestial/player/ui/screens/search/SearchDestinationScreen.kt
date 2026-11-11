@@ -11,9 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,8 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import com.celestial.player.domain.model.Album
-import com.celestial.player.domain.model.Artist
 import com.celestial.player.domain.model.Playlist
 import com.celestial.player.domain.model.Track
 import com.celestial.player.ui.components.glass.GlassArtwork
@@ -46,8 +42,6 @@ import kotlinx.coroutines.delay
 @Composable
 fun SearchDestinationScreen(
     sampleTracks: List<Track>,
-    sampleAlbums: List<Album> = emptyList(),
-    sampleArtists: List<Artist> = emptyList(),
     playlists: List<Playlist> = emptyList(),
     suggestedTrackIds: List<com.celestial.player.domain.model.TrackId>,
     isFavourite: (Track) -> Boolean,
@@ -55,8 +49,6 @@ fun SearchDestinationScreen(
     colorSeedFor: (Track) -> Int,
     onPlayTrack: (Track, List<Track>) -> Unit,
     onToggleFavourite: (Track) -> Unit,
-    onOpenAlbum: ((Album) -> Unit)? = null,
-    onOpenArtist: ((Artist) -> Unit)? = null,
     onOpenPlaylist: ((Playlist) -> Unit)? = null,
     onSearch: (suspend (String) -> List<Track>)? = null,
     onBack: (() -> Unit)? = null,
@@ -97,21 +89,6 @@ fun SearchDestinationScreen(
         }
     }
 
-    val queryAlbums = remember(debouncedQuery, sampleAlbums) {
-        if (debouncedQuery.isBlank()) emptyList() else
-            sampleAlbums.filter {
-                it.title.contains(debouncedQuery, ignoreCase = true) ||
-                    it.artistName.contains(debouncedQuery, ignoreCase = true)
-            }
-    }
-
-    val queryArtists = remember(debouncedQuery, sampleArtists) {
-        if (debouncedQuery.isBlank()) emptyList() else
-            sampleArtists.filter {
-                it.name.contains(debouncedQuery, ignoreCase = true)
-            }
-    }
-
     val queryPlaylists = remember(debouncedQuery, playlists) {
         if (debouncedQuery.isBlank()) emptyList() else
             playlists.filter {
@@ -121,7 +98,7 @@ fun SearchDestinationScreen(
 
     DestinationScreen(
         title = "Search",
-        subtitle = "Find songs, albums, artists and playlists",
+        subtitle = "Find songs and playlists",
         modifier = modifier,
         onBack = onBack,
     ) {
@@ -198,8 +175,6 @@ fun SearchDestinationScreen(
             } else {
                 val hasResults = when (selectedCategory) {
                     SearchCategory.Songs -> queryTracks.isNotEmpty()
-                    SearchCategory.Albums -> queryAlbums.isNotEmpty()
-                    SearchCategory.Artists -> queryArtists.isNotEmpty()
                     SearchCategory.Playlists -> queryPlaylists.isNotEmpty()
                 }
 
@@ -217,8 +192,6 @@ fun SearchDestinationScreen(
                     item(key = "results-count") {
                         val count = when (selectedCategory) {
                             SearchCategory.Songs -> queryTracks.size
-                            SearchCategory.Albums -> queryAlbums.size
-                            SearchCategory.Artists -> queryArtists.size
                             SearchCategory.Playlists -> queryPlaylists.size
                         }
                         Text(
@@ -240,45 +213,6 @@ fun SearchDestinationScreen(
                                 onToggleFavourite = onToggleFavourite,
                                 trackColorSeed = colorSeedFor,
                             )
-                        }
-
-                        SearchCategory.Albums -> {
-                            items(items = queryAlbums, key = { album: Album -> "album-${album.id.value}" }) { album ->
-                                GlassListRow(
-                                    title = album.title,
-                                    subtitle = album.artistName,
-                                    onClick = { onOpenAlbum?.invoke(album) },
-                                    modifier = Modifier.padding(horizontal = CelestialTheme.spacing.sm),
-                                    leading = {
-                                        GlassArtwork(
-                                            size = 48.dp,
-                                            colorSeed = album.colorSeed,
-                                            shape = MaterialTheme.shapes.medium,
-                                            icon = Icons.Filled.Album,
-                                        )
-                                    },
-                                )
-                            }
-                        }
-
-                        SearchCategory.Artists -> {
-                            items(items = queryArtists, key = { artist: Artist -> "artist-${artist.id.value}" }) { artist ->
-                                GlassListRow(
-                                    title = artist.name,
-                                    subtitle = "${artist.albumIds.size} albums · ${artist.trackIds.size} tracks",
-                                    onClick = { onOpenArtist?.invoke(artist) },
-                                    modifier = Modifier.padding(horizontal = CelestialTheme.spacing.sm),
-                                    leading = {
-                                        GlassArtwork(
-                                            size = 48.dp,
-                                            colorSeed = artist.id.value.hashCode(),
-                                            shape = MaterialTheme.shapes.extraLarge,
-                                            icon = Icons.Filled.Person,
-                                            initials = artist.name,
-                                        )
-                                    },
-                                )
-                            }
                         }
 
                         SearchCategory.Playlists -> {

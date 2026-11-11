@@ -4,6 +4,8 @@
 
 Celestial is a native Android music player presented as an explorable fictional universe. It should feel like a universe that happens to be a music player—not a conventional music player with a space wallpaper.
 
+All audio is read from one user-selected folder on the device. There is no account, stream, sync or network dependency.
+
 ## Core experience
 
 The home screen is a fictional planetary system around an original, bright central star. The user can rotate the universe freely in three dimensions. Each destination is represented by a distinct planet. Selecting a planet triggers a cinematic camera journey into that world, where familiar glass UI presents the destination's content.
@@ -36,8 +38,6 @@ The currently playing song has a persistent miniature planet that remains visibl
 All major tabs/destinations are represented by planets:
 - Playlists
 - All Songs
-- Albums
-- Artists
 - Search
 - Favourites
 - Recently Played
@@ -54,4 +54,4 @@ Heavenly, quiet, expansive, celestial, elegant, immersive and restrained. Avoid 
 
 ## Open decisions
 
-The exact fictional planet names, final planet-to-destination mapping, detailed visual identity of each planet, precise screen layouts for All Songs/Albums/Artists/Favourites/Recently Played, onboarding permissions flow, and exact typography choices are not yet locked. Do not present proposals as confirmed requirements.
+The exact fictional planet names, final planet-to-destination mapping, detailed visual identity of each planet, precise screen layouts for All Songs/Search/Favourites/Recently Played, onboarding permissions flow, and exact typography choices are not yet locked. Do not present proposals as confirmed requirements.

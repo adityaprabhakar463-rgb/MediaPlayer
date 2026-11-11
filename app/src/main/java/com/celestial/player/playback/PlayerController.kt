@@ -1,279 +1,308 @@
 package com.celestial.player.playback
 
+import android.content.ComponentName
 import android.content.Context
-import android.util.Log
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import com.celestial.player.data.remote.ApiException
-import com.celestial.player.data.remote.CelestialApiClient
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import com.celestial.player.domain.model.Track
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 
+/**
+ * Compose-facing playback façade over a Media3 [MediaController].
+ *
+ * The actual player lives in [PlaybackService]; this class translates controller events into
+ * [PlayerUiState], and forwards user commands. The queue is mirrored from the controller so the app
+ * restores the correct track after process/Activity recreation.
+ */
 class PlayerController(
     context: Context,
-    initMsPerTick: Long = 500L,
-    private val onTrackPlayed: (Track) -> Unit = {},
     private val coroutineScope: CoroutineScope,
-    private val apiClient: CelestialApiClient,
+    private val onTrackPlayed: (Track) -> Unit = {},
+    private val trackResolver: (String) -> Track? = { null },
 ) {
-
     var state by mutableStateOf(PlayerUiState())
         private set
 
-    private val msPerTick = initMsPerTick
+    private val appContext = context.applicationContext
+    private val ready = CompletableDeferred<MediaController?>()
+    private var controller: MediaController? = null
+    private var controllerFuture: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
     private var tickJob: Job? = null
-    private var resolveJob: Job? = null
+    private var lastReportedTrackId: String? = null
 
-    private val audioEngine: AudioEngine
+    private val playerListener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            syncFromController()
+            mediaItem?.mediaId?.let(::reportPlayed)
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            state = state.copy(isPlaying = isPlaying)
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            state = when (playbackState) {
+                Player.STATE_BUFFERING -> state.copy(
+                    isBuffering = true,
+                    isPreparing = state.currentTrack != null && state.positionMs == 0L,
+                )
+
+                Player.STATE_READY -> state.copy(
+                    isBuffering = false,
+                    isPreparing = false,
+                    durationMs = controller?.duration?.takeIf { it > 0L } ?: state.durationMs,
+                )
+
+                Player.STATE_ENDED -> state.copy(isBuffering = false, isPreparing = false)
+                else -> state
+            }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            state = state.copy(
+                isPlaying = false,
+                isBuffering = false,
+                isPreparing = false,
+                playbackError = error.message ?: "Could not play this file",
+            )
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            state = state.copy(shuffleEnabled = shuffleModeEnabled)
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            state = state.copy(repeatMode = repeatMode.toRepeatMode())
+        }
+    }
 
     init {
-        audioEngine = AudioEngine(
-            context = context.applicationContext,
-            listener = object : AudioEngine.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (state.currentTrack != null && audioEngine.hasMedia) {
-                        state = state.copy(isPlaying = isPlaying)
-                    }
+        val token = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
+        val future = MediaController.Builder(appContext, token).buildAsync()
+        controllerFuture = future
+        future.addListener(
+            {
+                val connected = runCatching { future.get() }.getOrNull()
+                if (connected == null) {
+                    ready.complete(null)
+                    state = state.copy(playbackError = "Playback service unavailable")
+                    return@addListener
                 }
-
-                override fun onPlaybackStateChanged(state: Int) {
-                    when (state) {
-                        Player.STATE_BUFFERING -> {
-                            this@PlayerController.state = this@PlayerController.state.copy(isBuffering = true)
-                        }
-
-                        Player.STATE_READY -> {
-                            val duration = audioEngine.durationMs.takeIf { it > 0L }
-                            this@PlayerController.state = this@PlayerController.state.copy(
-                                isBuffering = false,
-                                durationMs = duration ?: this@PlayerController.state.durationMs,
-                            )
-                        }
-
-                        Player.STATE_ENDED -> {
-                            this@PlayerController.state = this@PlayerController.state.copy(isBuffering = false)
-                            handleEnded()
-                        }
-                    }
-                }
-
-                override fun onError(message: String) {
-                    Log.w(TAG, "engine error: $message, falling back to local ticker")
-                    // Fall back gracefully to local position ticker if media engine encounters stream error
-                    state = state.copy(
-                        isBuffering = false,
-                        isResolvingStream = false,
-                        playbackError = null,
-                    )
-                }
+                controller = connected
+                connected.addListener(playerListener)
+                ready.complete(connected)
+                syncFromController()
+                startTicker()
             },
+            ContextCompat.getMainExecutor(appContext),
         )
-        startTicker()
     }
 
     fun play(track: Track, queue: List<Track> = listOf(track)) {
-        audioEngine.stop()
-        val index = queue.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+        val playQueue = queue.ifEmpty { listOf(track) }
+        val index = playQueue.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
         state = PlayerUiState(
             currentTrack = track,
             isPlaying = true,
             positionMs = 0L,
             durationMs = track.durationMs,
-            queue = queue,
+            queue = playQueue,
             queueIndex = index,
             shuffleEnabled = state.shuffleEnabled,
             repeatMode = state.repeatMode,
-            isResolvingStream = true,
-            isBuffering = false,
+            isPreparing = true,
         )
-        onTrackPlayed(track)
-        resolveStream(track)
+        reportPlayed(track.id.value, force = true)
+        withController { controller ->
+            controller.setMediaItems(playQueue.map(::toMediaItem), index, 0L)
+            controller.prepare()
+            controller.play()
+        }
     }
 
     fun togglePlayPause() {
         val track = state.currentTrack ?: return
         val nextPlaying = !state.isPlaying
-        if (nextPlaying) {
-            if (audioEngine.hasMedia) {
-                audioEngine.play()
-            } else if (state.streamUrl == null) {
-                resolveStream(track)
-            }
-        } else {
-            if (audioEngine.hasMedia) {
-                audioEngine.pause()
+        state = state.copy(isPlaying = nextPlaying, playbackError = null)
+        withController { controller ->
+            if (nextPlaying) {
+                if (controller.mediaItemCount == 0) {
+                    play(track, state.queue)
+                } else {
+                    if (controller.playbackState == Player.STATE_ENDED) controller.seekTo(0L)
+                    controller.play()
+                }
+            } else {
+                controller.pause()
             }
         }
-        state = state.copy(isPlaying = nextPlaying, playbackError = null)
     }
 
     fun next() {
-        val nextIndex = state.queueIndex + 1
-        when {
-            nextIndex < state.queue.size -> moveTo(nextIndex)
-            state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> moveTo(0)
-            else -> stopAtQueueEnd()
+        withController { controller ->
+            if (controller.hasNextMediaItem()) controller.seekToNextMediaItem()
+            else if (controller.repeatMode == Player.REPEAT_MODE_ALL && controller.mediaItemCount > 0) {
+                controller.seekTo(0, 0L)
+            }
         }
     }
 
     fun previous() {
-        if (state.positionMs > 3_000L) {
-            audioEngine.seekTo(0L)
-            state = state.copy(positionMs = 0L)
-            return
-        }
-        val previousIndex = state.queueIndex - 1
-        when {
-            previousIndex >= 0 -> moveTo(previousIndex)
-            state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> moveTo(state.queue.lastIndex)
-            else -> {
-                audioEngine.seekTo(0L)
-                state = state.copy(positionMs = 0L)
+        withController { controller ->
+            if (controller.currentPosition > RESTART_THRESHOLD_MS) {
+                controller.seekTo(0L)
+            } else if (controller.hasPreviousMediaItem()) {
+                controller.seekToPreviousMediaItem()
+            } else {
+                controller.seekTo(0L)
             }
         }
     }
 
     fun seekTo(positionMs: Long) {
         val bounded = positionMs.coerceIn(0L, state.durationMs)
-        if (audioEngine.hasMedia) {
-            audioEngine.seekTo(bounded)
-        }
         state = state.copy(positionMs = bounded)
+        withController { it.seekTo(bounded) }
     }
 
     fun setShuffle(enabled: Boolean) {
-        if (enabled == state.shuffleEnabled) return
-        val oldQueue = state.queue
-        val current = state.currentTrack
-        state = if (enabled && oldQueue.size > 1 && current != null) {
-            val rest = oldQueue.filterIndexed { i, _ -> i != state.queueIndex }.shuffled()
-            state.copy(queue = listOf(current) + rest, queueIndex = 0)
-        } else {
-            state.copy(shuffleEnabled = enabled)
-        }
+        state = state.copy(shuffleEnabled = enabled)
+        withController { it.shuffleModeEnabled = enabled }
     }
 
     fun cycleRepeatMode() {
-        val nextMode = when (state.repeatMode) {
+        val next = when (state.repeatMode) {
             RepeatMode.Off -> RepeatMode.All
             RepeatMode.All -> RepeatMode.One
             RepeatMode.One -> RepeatMode.Off
         }
-        state = state.copy(repeatMode = nextMode)
+        state = state.copy(repeatMode = next)
+        withController { it.repeatMode = next.toPlayerRepeatMode() }
     }
 
     fun release() {
-        resolveJob?.cancel()
         tickJob?.cancel()
         tickJob = null
-        audioEngine.release()
+        controller?.removeListener(playerListener)
+        controller = null
+        controllerFuture?.let(MediaController::releaseFuture)
     }
 
-    private fun moveTo(index: Int) {
-        val queue = state.queue
-        if (queue.isEmpty()) return
-        val bounded = index.coerceIn(0, queue.lastIndex)
-        val track = queue[bounded]
-        audioEngine.stop()
-        state = state.copy(
-            currentTrack = track,
-            positionMs = 0L,
-            durationMs = track.durationMs,
-            queueIndex = bounded,
-            isPlaying = true,
-            streamUrl = null,
-            streamProvider = null,
-            playbackError = null,
-            isResolvingStream = true,
-            isBuffering = false,
-        )
-        onTrackPlayed(track)
-        resolveStream(track)
-    }
-
-    private fun stopAtQueueEnd() {
-        audioEngine.pause()
-        state = state.copy(
-            isPlaying = false,
-            positionMs = state.durationMs,
-        )
-    }
-
-    private fun handleEnded() {
-        when {
-            state.repeatMode == RepeatMode.One -> {
-                audioEngine.seekTo(0L)
-                if (audioEngine.hasMedia) audioEngine.play()
-                state = state.copy(positionMs = 0L, isPlaying = true)
-            }
-
-            state.queueIndex + 1 < state.queue.size -> moveTo(state.queueIndex + 1)
-            state.repeatMode == RepeatMode.All && state.queue.isNotEmpty() -> moveTo(0)
-            else -> state = state.copy(
-                isPlaying = false,
-                positionMs = state.durationMs,
-            )
+    /** Clears playback and the queue, used when the library folder is removed. */
+    fun stop() {
+        lastReportedTrackId = null
+        state = PlayerUiState()
+        withController { controller ->
+            controller.stop()
+            controller.clearMediaItems()
         }
     }
 
-    /**
-     * Resolves a stream URL through the backend first. If backend is offline or returns an error,
-     * immediately falls back to direct Audius API stream resolution so songs play anywhere on phone.
-     */
-    private fun resolveStream(track: Track) {
-        resolveJob?.cancel()
-        resolveJob = coroutineScope.launch {
-            state = state.copy(isResolvingStream = true, playbackError = null)
-            val streamUrl = runCatching { apiClient.resolveStreamUrl(track.id.value).streamUrl }
-                .getOrElse {
-                    Log.i(TAG, "Backend unreachable. Resolving stream directly from Audius: ${track.title}")
-                    com.celestial.player.data.remote.DirectAudiusClient.resolveDirectStreamUrl(track.id.value)
-                }
-
-            if (state.currentTrack?.id != track.id) return@launch
-            state = state.copy(
-                streamUrl = streamUrl,
-                streamProvider = "audius",
-                isResolvingStream = false,
-            )
-            audioEngine.load(streamUrl, playWhenReady = state.isPlaying)
+    private fun syncFromController() {
+        val controller = controller ?: return
+        val count = controller.mediaItemCount
+        if (count == 0) return
+        val tracks = (0 until count).mapNotNull { index ->
+            trackResolver(controller.getMediaItemAt(index).mediaId)
         }
+        if (tracks.size != count) return
+
+        val index = controller.currentMediaItemIndex.coerceIn(0, tracks.lastIndex)
+        val current = tracks[index]
+        val duration = controller.duration.takeIf { it > 0L } ?: current.durationMs
+        state = state.copy(
+            currentTrack = current,
+            isPlaying = controller.isPlaying,
+            positionMs = controller.currentPosition.coerceIn(0L, duration.coerceAtLeast(0L)),
+            durationMs = duration,
+            isBuffering = controller.playbackState == Player.STATE_BUFFERING,
+            queue = tracks,
+            queueIndex = index,
+            shuffleEnabled = controller.shuffleModeEnabled,
+            repeatMode = controller.repeatMode.toRepeatMode(),
+        )
     }
 
     private fun startTicker() {
         if (tickJob?.isActive == true) return
         tickJob = coroutineScope.launch {
             while (isActive) {
-                delay(msPerTick)
-                val current = state
-                if (current.isPlaying) {
-                    if (audioEngine.hasMedia) {
-                        val duration = audioEngine.durationMs.takeIf { it > 0L } ?: current.durationMs
-                        state = current.copy(
-                            positionMs = audioEngine.positionMs.coerceIn(0L, duration),
-                            durationMs = duration,
-                        )
-                    } else {
-                        // Fallback simulation playback ticker mode
-                        val nextPos = current.positionMs + msPerTick
-                        if (nextPos >= current.durationMs) {
-                            handleEnded()
-                        } else {
-                            state = current.copy(positionMs = nextPos)
-                        }
-                    }
+                delay(TICK_MS)
+                val controller = controller ?: continue
+                if (state.currentTrack == null && controller.currentMediaItem != null) {
+                    syncFromController()
                 }
+                if (state.currentTrack == null) continue
+                val duration = controller.duration.takeIf { it > 0L } ?: state.durationMs
+                val position = controller.currentPosition.coerceIn(0L, duration.coerceAtLeast(0L))
+                state = state.copy(
+                    positionMs = position,
+                    durationMs = duration,
+                    isPlaying = controller.isPlaying,
+                    isBuffering = controller.playbackState == Player.STATE_BUFFERING,
+                )
             }
         }
     }
 
+    private fun reportPlayed(mediaId: String, force: Boolean = false) {
+        if (mediaId == lastReportedTrackId && !force) return
+        lastReportedTrackId = mediaId
+        trackResolver(mediaId)?.let(onTrackPlayed)
+    }
+
+    private fun toMediaItem(track: Track): MediaItem {
+        val metadata = MediaMetadata.Builder()
+            .setTitle(track.title)
+            .setArtist(track.artistName)
+            .setAlbumTitle(track.albumTitle)
+            .apply {
+                track.artworkPath?.let { path -> setArtworkUri(Uri.fromFile(File(path))) }
+            }
+            .build()
+        return MediaItem.Builder()
+            .setMediaId(track.id.value)
+            .setUri(track.mediaUri)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
+    private fun withController(block: (MediaController) -> Unit) {
+        coroutineScope.launch {
+            val controller = controller ?: ready.await() ?: return@launch
+            block(controller)
+        }
+    }
+
+    private fun Int.toRepeatMode(): RepeatMode = when (this) {
+        Player.REPEAT_MODE_ALL -> RepeatMode.All
+        Player.REPEAT_MODE_ONE -> RepeatMode.One
+        else -> RepeatMode.Off
+    }
+
+    private fun RepeatMode.toPlayerRepeatMode(): Int = when (this) {
+        RepeatMode.Off -> Player.REPEAT_MODE_OFF
+        RepeatMode.All -> Player.REPEAT_MODE_ALL
+        RepeatMode.One -> Player.REPEAT_MODE_ONE
+    }
+
     private companion object {
-        const val TAG = "PlayerController"
+        const val TICK_MS = 500L
+        const val RESTART_THRESHOLD_MS = 3_000L
     }
 }

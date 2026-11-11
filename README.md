@@ -1,82 +1,179 @@
-# Celestial — Design & Implementation Documentation
+# Celestial
 
-**Product:** Celestial, a native Android space-themed media player  
-**Platform:** Android  
-**Implementation direction:** Kotlin + Jetpack Compose frontend, with a real-time 3D scene integrated into the Compose UI; remote backend as Ktor modular monolith + PostgreSQL serving a curated Audius catalog prototype (`docs/backend/01`–`12`, `PROGRESS.md`)  
-**Status:** Frontend phases 1–7 complete; backend docs written (`01`–`12` authoritative, `00` legacy); backend **M0 (skeleton + auth) complete** in `celestial-backend/` (2026-11-07), **M1 (catalog + Audius adapter) awaiting "go"**. Visual/product details not explicitly decided are marked as proposals/open decisions.
+**An offline, space-themed music player for Android.**
 
-## Start here
+Celestial turns a single folder of audio files into an interactive 3D solar system. Each planet is a
+destination, the currently playing track orbits with you, and all playback stays on the device. No
+account, no server, no streaming.
 
-1. Read `docs/frontend/01_DESIGN_VISION.md`.
-2. Read `docs/frontend/02_SKILL_USAGE_AND_OPENCODE_RULES.md` before doing any design or UI implementation.
-3. Read the remaining documents in numerical order.
-4. Treat confirmed user decisions as requirements. Do not silently replace them with conventional mobile-app patterns.
-5. Where a detail is marked **Open decision**, ask before inventing a product-level behaviour. You may use a temporary implementation assumption only if it is clearly documented.
+![Platform](https://img.shields.io/badge/platform-Android%2026%2B-3DDC84)
+![Language](https://img.shields.io/badge/language-Kotlin-7F52FF)
+![UI](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4)
+![Status](https://img.shields.io/badge/status-alpha-F59E0B)
 
-## Document index
+---
 
-- `01_DESIGN_VISION.md` — product concept and visual philosophy
-- `02_SKILL_USAGE_AND_OPENCODE_RULES.md` — mandatory skill activation and workflow
-- `03_DESIGN_SYSTEM.md` — palette, typography, glass surfaces and visual tokens
-- `04_SOLAR_SYSTEM_AND_3D_SCENE.md` — fictional solar system, planets, camera and interaction
-- `05_FIRST_LAUNCH_UNIVERSE_CREATION.md` — Big Bang, star and planet formation, seamless transition
-- `06_NAVIGATION_AND_SCREEN_SPECIFICATIONS.md` — planet destinations and screen behaviour
-- `07_NOW_PLAYING_AND_MEDIA_CONTROLS.md` — album planet, seek ring, UFO, asteroids and standard controls
-- `08_COMPONENT_LIBRARY.md` — reusable Compose and 3D components
-- `09_MOTION_AND_INTERACTION.md` — motion language, gestures, states and accessibility alternatives
-- `10_RESPONSIVE_ACCESSIBILITY_PERFORMANCE.md` — device adaptation, accessibility and performance
-- `11_FRONTEND_IMPLEMENTATION_GUIDE.md` — implementation sequence, acceptance criteria and handoff
-- `15_NAVIGATION_UX_AND_PLANET_LABELS.md` — navigation UX, planet labels, and accessible destination fallback
-- `16_LIGHTWEIGHT_PERFORMANCE.md` — lightweight, lag-free optimization without major changes
+## Overview
 
-## Backend documentation
+Celestial is a native Android application built with Kotlin and Jetpack Compose. Users select one
+music folder through the Android Storage Access Framework; the app indexes it recursively and
+presents the library through the existing planetary navigation and glass UI. Playback is handled by
+Media3 and continues in the background with a media notification and lockscreen controls.
 
-- `docs/backend/00_BACKEND_CONCEPT.md` — **legacy/conflicting** on-device concept (MediaStore/local). **Authoritative (confirmed 2026-11-07): `01`–`12` + `PROGRESS.md`** (remote Ktor/Postgres/curated Audius). Do not use `00` as source of truth.
-- `docs/backend/01_BACKEND_VISION_AND_SCOPE.md` — vision, goals, non-goals, locked decisions.
-- `docs/backend/02_ARCHITECTURE_AND_STACK.md` — Ktor modular monolith, modules, provider boundary.
-- `docs/backend/03_DOMAIN_AND_DATA_MODEL.md` — users, devices, tracks, playlists, favourites, recents, sync.
-- `docs/backend/04_API_CONTRACT.md` — REST v1 endpoints, pagination, errors, OpenAPI.
-- `docs/backend/05_AUTH_AND_SECURITY.md` — anonymous device auth, JWT rotation, upgrade/link, compliance.
-- `docs/backend/06_AUDIUS_INTEGRATION_AND_STREAMING.md` — Audius adapter, stream resolution, rate budget, availability filtering.
-- `docs/backend/07_SEARCH_AND_DISCOVERY.md` — curated catalog search, categories, suggestions.
-- `docs/backend/08_SYNC_AND_OFFLINE.md` — delta sync, tombstones, offline metadata cache.
-- `docs/backend/09_INFRASTRUCTURE_AND_DEPLOYMENT.md` — Docker Compose, CI/CD, backups, observability.
-- `docs/backend/10_TESTING_OBSERVABILITY_AND_QUALITY.md` — testing strategy, observability, quality gates.
-- `docs/backend/11_BACKEND_IMPLEMENTATION_GUIDE.md` — milestones M0–M3, sequencing with frontend, risks.
-- `docs/backend/12_CATALOG_OPERATIONS.md` — curated artist allowlist, takedown handling, audit.
-- `docs/backend/13_CLIENT_INTEGRATION_AND_RUNTIME.md` — what is wired end-to-end, local run instructions, sync semantics, and known gaps.
+The product deliberately avoids conventional tab bars and dashboards. The 3D universe is the
+navigation layer; destination screens use familiar glass lists for content.
 
-## Current Implementation Status
+## Features
 
-### Frontend (Android, `app/`)
-- **Phase 1 — Design foundation:** Complete ✅ (Compose theme, glass surface primitives, design tokens, gallery component previews, Robolectric/Roborazzi screenshot testing)
-- **Phase 2 — Destination UI without 3D:** Complete ✅ (Playlists, Search w/ category filtering, All Songs, Albums, Artists, Favourites, Recently Played layouts, Settings floating panel, persistent mini player planet)
-- **Phase 3 — 3D scene foundation:** Complete ✅ (Real-time 3D solar system rendering engine in `scene/`, 800+ 3D starfield particles, central star with corona and solar flares, 7 3D destination planets, orbit camera w/ drag rotation inertia, pinch zoom, raycasting planet tap selection and approach transition)
-- **Phase 4 — Navigation and continuity:** Complete ✅ (Planet approach camera transition, destination screen integration, reverse camera pullback on back navigation, `CelestialNavState` previous destination tracking, persistent mini music planet)
-- **Phase 5 — Now Playing signature controls:** Complete ✅ (3D album artwork planet, orbital interactive seek ring, UFO play/pause control w/ illuminated engine beam, 3D asteroid previous/next controls w/ impact animation, queue drawer, shuffle, repeat, and favourite controls)
-- **Phase 6 — First-launch formation:** Complete ✅ (Cinematic Big Bang, nebula dust, central star ignition, planet accretion sequence in `UniverseFormationSequence`, skip intro, and replay intro from Settings panel)
-- **Phase 7 — Refinement and quality:** Complete ✅ (Motion polish, reduced-effects mode support, accessibility TalkBack and touch targets audit, responsive adaptive grids, and 60 FPS Canvas performance optimizations)
-- **Client-Server Integration and Real Playback:** Complete ✅ (`CelestialApiClient` with persistent device identity, signed JWT access/refresh handling, catalog + search + playlists + favourites + recents sync in `LibraryStateHolder`, Audius stream resolution, and Media3/ExoPlayer playback in `PlayerController`). The debug workflow uses an automatic `adb reverse` tunnel; server-side library storage is currently in-memory and background playback is still open — see `docs/backend/13_CLIENT_INTEGRATION_AND_RUNTIME.md`.
+- **Offline by design** — no network permission, no accounts, no sync, no API keys.
+- **Folder-scoped library** — one user-selected folder, scanned recursively; subfolders included.
+- **Embedded metadata** — title, artist, album, duration, track number and album art read from tags.
+- **Graceful fallbacks** — filename (`Artist - Title`, leading track numbers) and parent-folder
+  album names when tags are missing.
+- **Room persistence** — tracks, playlists, favourites and recents survive rescans; entries for
+  files that disappeared are pruned.
+- **Background playback** — Media3 `MediaSessionService` with audio focus, noisy-headset handling,
+  notification and lockscreen/headset controls.
+- **Interactive 3D universe** — custom Canvas renderer, free rotation, pinch zoom, inertial camera,
+  planet labels and a Big Bang formation sequence.
+- **Five destinations** — Playlists, All Songs, Search, Favourites and Recently Played.
+- **Local search** — instant search over title, artist, album and folder path.
+- **Accessible navigation** — a glass Destinations sheet and TalkBack actions mirror every planet.
+- **Reduced-effects mode** — calms ambient motion and glow.
 
-### Backend (remote server, curated Audius prototype, `celestial-backend/`)
+## Navigation
 
-**Architecture (per `docs/backend/01`–`03,11`):** Ktor modular monolith (pure-Kotlin domain), REST `/api/v1/*`, OpenAPI intended as contract source of truth. Modules: `auth`, `catalog`, `library`, `audius-adapter`, `search`, `admin`. Provider boundary: `TrackSource` (`search`/`getTrack`/`resolveStream`) — Audius first, swappable. Backend never stores/transcodes/CDN audio and never persists long-lived stream URLs; playback resolves a **short-lived stream URL/redirect metadata** per play for client/Media3 direct fetch (confirmed). Curated verified artists only; client never calls Audius directly.
+| Destination | Purpose |
+|---|---|
+| Playlists | User-created playlists stored in Room |
+| All Songs | Complete indexed library, with sort options |
+| Search | Local search over songs and playlists |
+| Favourites | Room-backed favourites |
+| Recently Played | Playback history, trimmed to the latest 100 |
 
-**Stack (planned/M0 actual):** Ktor 3 + kotlinx.serialization, PostgreSQL + Flyway + Exposed + HikariCP, JWT access + rotated refresh (Argon2id planned for password upgrade), Docker Compose; RFC 9457 `application/problem+json`. M0 actuals: Kotlin 2.1.0 plugin + Ktor 3.0.3 + Gradle 8.10.2 wrapper (compile-reliability deviation from doc 02's 2.4.10 target — revisit).
+Settings opens as a floating glass panel, not a planet. The persistent mini player is available on
+every screen and expands into Now Playing.
 
-**Phases (M0–M3, `docs/backend/11`):**
-- **M0 — Skeleton + auth:** **Complete ✅ (2026-11-07).** `celestial-backend/` scaffolded (`build.gradle.kts`, wrapper, `.env.example`, `.gitignore`, `Dockerfile`, `docker-compose.yml` Postgres 16 + backend profile), `V1__m0_auth.sql` (users/devices/refresh_tokens), config/db/problem/auth/api. Endpoints: `/health,/ready,/version`; `POST /api/v1/auth/device/register` (201), `/auth/token/refresh` (rotation), `/auth/revoke` (Bearer access token). `AppSmokeTest` passed locally (`skipDb`); `AuthIntegrationTest` (Testcontainers) written, **skipped here (Docker unavailable)**. Deviations/gaps: OpenAPI/contract tests not generated yet; `/auth/upgrade` deferred to M2; rate-limit middleware not enforced yet. Details: `PROGRESS.md`.
-- **M1 — Catalog + Audius adapter:** awaiting "go". `TrackSource` + Audius impl, discovery-node failover, curated allowlist, search/track/playback resolution, availability filter (`is_streamable`, `is_available`, `!is_delete`), negative-cache TTL, server-side Audius budget (10 rps / 500k mo) + 429/`Retry-After`.
-- **M2 — Library + sync:** pending. Playlists/favourites/recents CRUD, delta sync + tombstones + ack, optimistic versions, anonymous→email+password upgrade/link merge (Argon2id).
-- **M3 — Search + hardening:** pending. Postgres FTS/`pg_trgm`, ranking, quotas, observability, CI quality gates, swappable adapter readiness.
+## Technology
 
-**Decisions (confirmed 2026-11-07):** authoritative = `docs/backend/01–12` + `PROGRESS.md` (`00` legacy); backend at `celestial-backend/`; email+password first (Google deferred); playback = short-lived URL/redirect metadata (no proxy yet); configurable rate-limit/budget defaults documented in `PROGRESS.md`.
+| Area | Choice |
+|---|---|
+| Language | Kotlin 2.4.10 |
+| UI | Jetpack Compose (BOM 2026.09.00), Material 3 |
+| 3D | Custom Compose Canvas renderer (no third-party engine) |
+| Persistence | Room 2.8.5 (KSP) |
+| Playback | Media3 ExoPlayer + MediaSession 1.11.1 |
+| Images | Coil 3.6.3 |
+| Build | Gradle 9.8.2, AGP 9.5.0, JDK 17 |
+| SDK | minSdk 26, targetSdk/compileSdk 37 |
 
-## Important distinction
+## Architecture
 
-Celestial has two complementary layers:
+```text
+app/src/main/java/com/celestial/player/
+  MainActivity.kt
+  CelestialAppViewModel.kt        # Activity-scoped library, playback and navigation state
+  data/
+    LibraryStateHolder.kt         # Compose state facade over Room and the SAF scanner
+    db/                           # Room entities, DAO, database
+    local/                        # FolderMediaScanner, LibraryPreferences
+  domain/model/MediaModels.kt     # Track, Album, Playlist, RecentPlay
+  playback/
+    PlaybackService.kt            # MediaSessionService, ExoPlayer, notification
+    PlayerController.kt           # MediaController facade -> PlayerUiState
+    PlayerUiState.kt
+  scene/                          # 3D math, camera, planets, formation sequence
+  ui/                             # theme, glass components, screens, navigation
+```
 
-- **Outside a destination:** the interactive 3D fictional solar system. Planets are the primary navigation.
-- **Inside a destination:** familiar, minimalist, glass-style Android UI over a deep-space background.
+Scanning runs on `Dispatchers.IO`; Room flows update Compose state on the main thread. A generation
+token invalidates stale scans, and a failed root read keeps the previous index intact instead of
+replacing it with an empty library.
 
-Do not turn every list row, button or setting into a planet. The planetary metaphor is the navigation system and the signature player controls; everyday content remains easy to use.
+### Data model
+
+| Table | Purpose |
+|---|---|
+| `tracks` | Indexed files, metadata, folder path, artwork path |
+| `playlists` | User-created playlists |
+| `playlist_tracks` | Ordered playlist membership |
+| `favourites` | Favourited track IDs and timestamps |
+| `recents` | Playback timestamps, trimmed to 100 entries |
+
+Track IDs are SAF document URIs. Album and artist identifiers are deterministic hashes of normalised
+names, so rescans preserve user data for files that still exist.
+
+## Requirements
+
+- Android Studio with JDK 17
+- Android SDK 37
+- Android device or emulator running Android 8.0 (API 26) or newer
+
+`local.properties` only needs the SDK path; there is no backend, database server or API key to
+configure.
+
+## Build and test
+
+```bash
+# Debug APK
+./gradlew :app:assembleDebug
+
+# Unit tests (Robolectric)
+./gradlew :app:testDebugUnitTest
+
+# Android Lint
+./gradlew :app:lintDebug
+
+# Release build (minified)
+./gradlew :app:assembleRelease
+```
+
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+Unit tests cover the Room library (rescan preservation and pruning), navigation state, the
+destination registry, scene math and Roborazzi design screenshots.
+
+## Documentation
+
+The design and implementation record lives in `docs/frontend/`:
+
+| Document | Contents |
+|---|---|
+| `01_DESIGN_VISION.md` | Product concept and visual philosophy |
+| `02_SKILL_USAGE_AND_OPENCODE_RULES.md` | Skill activation rules for design work |
+| `03_DESIGN_SYSTEM.md` | Palette, typography, glass tokens |
+| `04_SOLAR_SYSTEM_AND_3D_SCENE.md` | Planets, orbits, camera interaction |
+| `05_FIRST_LAUNCH_UNIVERSE_CREATION.md` | Big Bang and formation sequence |
+| `06_NAVIGATION_AND_SCREEN_SPECIFICATIONS.md` | Destination and screen behaviour |
+| `07_NOW_PLAYING_AND_MEDIA_CONTROLS.md` | Seek ring, UFO controls, queue |
+| `08_COMPONENT_LIBRARY.md` | Reusable Compose and 3D components |
+| `09_MOTION_AND_INTERACTION.md` | Motion language and gestures |
+| `10_RESPONSIVE_ACCESSIBILITY_PERFORMANCE.md` | Adaptation, accessibility, performance |
+| `11_FRONTEND_IMPLEMENTATION_GUIDE.md` | Phases and acceptance criteria |
+| `15_NAVIGATION_UX_AND_PLANET_LABELS.md` | Labels and accessible fallback |
+| `16_LIGHTWEIGHT_PERFORMANCE.md` | Performance constraints |
+| `17_LOCAL_LIBRARY_AND_FOLDERS.md` | Authoritative local-library specification |
+
+`PROGRESS.md` tracks completed work, verification results and known gaps.
+
+## Project conventions
+
+- Confirmed decisions in `docs/frontend/` are requirements; do not replace them with generic
+  mobile-app patterns.
+- Do not reintroduce streaming, accounts, sync or a backend.
+- Details marked **Open decision** must be raised with the project owner before implementation.
+- Working rules for contributors and AI agents are in `AGENTS.md`.
+
+## Status and limitations
+
+Frontend phases 1–8 are complete and the app builds and passes its test suite. On-device validation
+of folder permission persistence, notification controls and background playback is still pending.
+
+Known limitations:
+
+- Full rescan on launch; no incremental or background file observer.
+- No folder-tree browser; folders are searchable but only All Songs lists content.
+- No tag or artwork editing, sleep timer, equaliser or playback speed.
+- `mid`/`midi` files are indexed but codec support varies by device.
+
+See `PROGRESS.md` for the detailed engineering log.

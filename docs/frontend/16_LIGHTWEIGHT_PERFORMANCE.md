@@ -106,10 +106,10 @@ Set baselines with Macrobenchmark, FrameMetrics, and Perfetto on representative 
 
 - Add a local audio feature where the user sets a directory path and the app scans it recursively for playable files: mp3, wav, flac, opus.
 - Scan runs off the UI thread (coroutine/dispatcher) so it never blocks navigation or playback.
-- Extracted metadata (title, artist, album, duration, artwork) maps to the existing domain models (`Track`, `Album`, `Artist`) through a single source of truth; no parallel hardcoded libraries.
-- Local files play through the same player state model as streaming tracks; no separate fake player.
+- Extracted metadata (title, artist, album, duration, artwork) maps to the existing domain models (`Track`, `Album`) through a single source of truth; no parallel hardcoded libraries.
+- Local files play through the same player state model; there is no separate fake or streaming player.
 - Directory choice is persisted (DataStore/Preferences) and remembered across launches; user can change or clear it anytime.
-- Scan results surface through the normal glass screens (All Songs / Albums / Artists / Recently Played) with empty/loading/error states.
+- Scan results surface through the normal glass screens (All Songs / Search / Favourites / Recently Played) with empty/loading/error states.
 - Respect scoped storage / storage access framework permissions; do not request broad storage access unless required; handle permission denial gracefully.
 - No hardcoded music directories, file paths, or file lists anywhere in the app.
 

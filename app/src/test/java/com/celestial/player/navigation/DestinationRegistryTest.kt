@@ -14,15 +14,13 @@ class DestinationRegistryTest {
             NavTarget.Playlists,
             NavTarget.Search,
             NavTarget.AllSongs,
-            NavTarget.Albums,
-            NavTarget.Artists,
             NavTarget.Favourites,
             NavTarget.RecentlyPlayed,
         )
 
-        assertEquals(7, DestinationRegistry.entries.size)
+        assertEquals(5, DestinationRegistry.entries.size)
         assertEquals(expected, DestinationRegistry.entries.map { it.target }.toSet())
-        assertEquals(7, DestinationRegistry.entries.map { it.id }.toSet().size)
+        assertEquals(5, DestinationRegistry.entries.map { it.id }.toSet().size)
     }
 
     @Test

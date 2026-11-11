@@ -33,16 +33,16 @@ class CelestialNavStateTest {
     fun testNestedNavigationAndBack() {
         val nav = CelestialNavState()
 
-        nav.navigate(NavTarget.Albums)
+        nav.navigate(NavTarget.Favourites)
         nav.navigate(NavTarget.AllSongs)
         assertEquals(NavTarget.AllSongs, nav.current)
 
         nav.back()
-        assertEquals(NavTarget.Albums, nav.current)
+        assertEquals(NavTarget.Favourites, nav.current)
         assertNull(nav.previousDestination)
 
         nav.back()
         assertEquals(NavTarget.Universe, nav.current)
-        assertEquals(NavTarget.Albums, nav.previousDestination)
+        assertEquals(NavTarget.Favourites, nav.previousDestination)
     }
 }

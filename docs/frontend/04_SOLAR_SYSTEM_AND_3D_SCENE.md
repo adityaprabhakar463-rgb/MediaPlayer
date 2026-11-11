@@ -33,8 +33,6 @@ Behaviour:
 Destination planets:
 - Playlists
 - All Songs
-- Albums
-- Artists
 - Search
 - Favourites
 - Recently Played

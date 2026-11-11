@@ -6,11 +6,10 @@ Define how users move between the solar system home and destination screens, how
 
 ## 2. Current state
 
-- `NavTarget` (ui/navigation/NavTarget.kt) lists seven destinations plus detail types.
+- `NavTarget` (ui/navigation/NavTarget.kt) lists five destinations plus the playlist detail type.
 - `CelestialNavState` holds a back stack; `navigate` pushes, `back` pops.
-- Home is `UniversePlaceholderScreen` with destination chips; there is no 3D scene yet.
-- Planets have no labels, so users must guess what each destination opens.
-- There is no accessible non-3D destination list.
+- Home is the interactive 3D universe (`CelestialUniverseScene`); planets and labels are the primary navigation.
+- A Destinations sheet provides an accessible non-3D fallback.
 
 ## 3. Navigation model
 
@@ -29,8 +28,6 @@ Define how users move between the solar system home and destination screens, how
 | Playlists | queue | NavTarget.Playlists |
 | Search | search | NavTarget.Search |
 | All Songs | library | NavTarget.AllSongs |
-| Albums | album | NavTarget.Albums |
-| Artists | person | NavTarget.Artists |
 | Favourites | favourite | NavTarget.Favourites |
 | Recently Played | history | NavTarget.RecentlyPlayed |
 
@@ -45,7 +42,7 @@ Labels are the wayfinding layer for the solar system.
 - Labels scale and fade with distance; they are never fully hidden until the planet goes off-screen.
 - The selected planet gets a brighter halo and a stronger label.
 - Labels avoid collisions, clamp to screen bounds, and do not overlap the central star, mini player, system bars, or the Destinations sheet.
-- Max seven labels; early-out when no planet is visible.
+- Max five labels; early-out when no planet is visible.
 - Tapping a label does the same thing as tapping its planet: select and travel.
 - Touch targets are at least 48dp; TalkBack gets content descriptions such as "Playlists planet, button".
 - Positioning comes from scene projection; positions are read in the draw phase to avoid per-frame recomposition.
@@ -55,7 +52,7 @@ Labels are the wayfinding layer for the solar system.
 
 ## 6. Accessible navigation fallback
 
-- A Destinations button opens a small glass sheet listing all seven destinations.
+- A Destinations button opens a small glass sheet listing all five destinations.
 - The sheet is a conventional list: screen-reader traversable, clear tap targets, no 3D gestures required.
 - It is the fallback when the 3D renderer fails or the user prefers list navigation.
 - Closing the sheet restores the previous universe state exactly.

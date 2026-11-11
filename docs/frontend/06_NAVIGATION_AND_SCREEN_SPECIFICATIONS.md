@@ -46,10 +46,11 @@ Visual direction:
 - Deep-space background with subtle stars and occasional distant comets.
 
 Behaviour:
-- Search as user types, with sensible debounce.
+- Search as user types over the local library index, with sensible debounce.
 - Clear search.
-- Categorised results for songs, artists, albums and playlists where supported.
-- Tapping a song plays it; tapping an artist/album/playlist opens the relevant destination/detail.
+- Categorised results for songs and playlists.
+- Tapping a song plays it; tapping a playlist opens its detail screen.
+- Albums and artists are not destinations; their metadata still labels rows and artwork.
 - Show useful empty, loading and no-results states.
 - Persistent music planet remains visible.
 
@@ -59,41 +60,24 @@ Behaviour:
 - Show track title, artist and relevant metadata.
 - Support search/filter/sort if implemented.
 - Use efficient scrolling for large libraries.
-- Artwork thumbnails where available.
-- Empty and permission-denied states must be designed.
+- Artwork thumbnails where available (embedded tags, otherwise the designed fallback).
+- Empty and folder-permission-denied states must be designed; both offer folder selection or rescan.
 
 Exact row metadata and sorting options are open decisions.
 
-## 6. Albums destination
-
-- Familiar glass-based album collection.
-- Use artwork-led rows or grid depending on screen width and final design review.
-- Show album name, artist and relevant metadata.
-- Tapping opens album detail with track list.
-- Do not invent album artwork when none exists; use a designed fallback.
-
-Grid-vs-list final choice is open.
-
-## 7. Artists destination
-
-- Familiar glass list or responsive collection.
-- Show artist name and available artwork.
-- Tapping opens artist detail and associated tracks/albums where metadata exists.
-- Handle unknown artist metadata gracefully.
-
-## 8. Favourites destination
+## 6. Favourites destination
 
 - Familiar glass list of favourited tracks.
 - Clear empty state explaining how to add favourites.
 - Standard play/shuffle actions where supported.
 
-## 9. Recently Played destination
+## 7. Recently Played destination
 
 - Familiar glass list of recently played tracks.
 - Show useful recency information if available.
 - Clear empty state for new users.
 
-## 10. Settings panel
+## 8. Settings panel
 
 Settings is not a planet. It opens as a floating glass panel over the current environment.
 
@@ -116,6 +100,6 @@ Proposed categories:
 
 These are proposed categories; final options depend on actual implemented features.
 
-## 11. Persistent player placement
+## 9. Persistent player placement
 
 The mini music planet remains visible across all destination screens. Its exact screen anchor, size and behaviour around system insets should be established in responsive prototypes. It must not obstruct list scrolling, search input, important buttons or system navigation.

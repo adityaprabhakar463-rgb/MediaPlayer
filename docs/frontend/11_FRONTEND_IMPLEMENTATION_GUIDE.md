@@ -24,7 +24,7 @@ Do not replace the user's existing project structure without inspecting it.
 ### Phase 2 — Destination UI without 3D dependency
 - Playlists glass list.
 - Search glass interface.
-- All Songs, Albums, Artists, Favourites and Recently Played layouts.
+- All Songs, Search, Favourites and Recently Played layouts.
 - Settings glass panel.
 - Persistent player placeholder wired to a single state model.
 
@@ -67,6 +67,16 @@ Do not replace the user's existing project structure without inspecting it.
 - Performance profiling.
 - Device testing and visual review.
 
+### Phase 8 — Local library (direction change)
+- One user-chosen SAF folder, recursive indexing.
+- Room persistence for tracks, playlists, favourites and recents.
+- Embedded-tag metadata and artwork extraction.
+- Folder prompt after formation and Library settings.
+- Media3 `MediaSessionService` for background playback and notification.
+- Removal of all Audius/backend/network code.
+
+Details and acceptance criteria: `17_LOCAL_LIBRARY_AND_FOLDERS.md`.
+
 ## 3. Suggested project organisation
 
 Adapt to the existing project; do not impose this blindly.
@@ -82,8 +92,6 @@ app/
       playlists/
       search/
       library/
-      albums/
-      artists/
       favourites/
       recently_played/
       settings/
@@ -134,6 +142,16 @@ app/
 - Skip works.
 - Subsequent launches bypass formation.
 - Replay is available in Settings.
+
+### Local library
+- One folder can be chosen, changed and rescanned from Settings.
+- The first-run folder prompt appears after formation and can be skipped.
+- Subfolders are indexed; supported audio plays directly from its SAF URI.
+- Album grouping and artwork are derived from tags, with graceful untagged fallbacks.
+- Embedded artwork appears in lists and the notification; missing art uses the designed fallback.
+- Favourites, playlists and recents survive rescans for files that still exist.
+- Playback continues with the screen off and exposes lockscreen/headset controls.
+- No network permission, endpoint, API key or sync UI remains.
 
 ### Quality
 - No fake or inert controls.

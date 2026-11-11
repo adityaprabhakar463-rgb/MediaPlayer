@@ -1,6 +1,11 @@
 package com.celestial.player.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -9,42 +14,30 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.compose.material3.Text
-import com.celestial.player.ui.components.glass.GlassSearchField
-import com.celestial.player.data.BackendStatus
+import androidx.core.content.ContextCompat
 import com.celestial.player.data.LibraryStateHolder
+import com.celestial.player.data.LibraryStatus
+import com.celestial.player.data.local.LibraryPreferences
 import com.celestial.player.domain.model.Track
 import com.celestial.player.playback.PlayerController
 import com.celestial.player.playback.PlayerUiState
@@ -52,16 +45,14 @@ import com.celestial.player.scene.formation.UniverseFormationSequence
 import com.celestial.player.scene.host.CelestialUniverseScene
 import com.celestial.player.scene.host.UniverseSceneState
 import com.celestial.player.ui.components.glass.CelestialGlassSurface
-import com.celestial.player.ui.components.player.MiniPlayerPlanet
 import com.celestial.player.ui.components.glass.GlassSettingsPanel
 import com.celestial.player.ui.components.glass.SettingsEntryValue
 import com.celestial.player.ui.components.glass.SettingsSection
+import com.celestial.player.ui.components.library.LibraryScanPill
+import com.celestial.player.ui.components.library.MusicFolderPrompt
+import com.celestial.player.ui.components.player.MiniPlayerPlanet
 import com.celestial.player.ui.navigation.CelestialNavState
 import com.celestial.player.ui.navigation.NavTarget
-import com.celestial.player.ui.screens.albums.AlbumDetailScreen
-import com.celestial.player.ui.screens.albums.AlbumsScreen
-import com.celestial.player.ui.screens.artists.ArtistDetailScreen
-import com.celestial.player.ui.screens.artists.ArtistsScreen
 import com.celestial.player.ui.screens.favourites.FavouritesScreen
 import com.celestial.player.ui.screens.library.AllSongsScreen
 import com.celestial.player.ui.screens.now_playing.NowPlayingScreen
@@ -69,66 +60,77 @@ import com.celestial.player.ui.screens.playlists.PlaylistDetailScreen
 import com.celestial.player.ui.screens.playlists.PlaylistsScreen
 import com.celestial.player.ui.screens.recentplay.RecentlyPlayedScreen
 import com.celestial.player.ui.screens.search.SearchDestinationScreen
-import com.celestial.player.ui.screens.universe.UniversePlaceholderScreen
 import com.celestial.player.ui.theme.CelestialTheme
-import android.content.Context
-import kotlinx.coroutines.delay
 
 @Composable
 fun CelestialAppShell(
     library: LibraryStateHolder,
+    playerController: PlayerController,
+    navState: CelestialNavState,
     reducedEffects: Boolean,
     onReducedEffectsChange: (Boolean) -> Unit,
 ) {
-    val nav = remember { CelestialNavState() }
-    val scope = rememberCoroutineScope()
+    val nav = navState
     val context = LocalContext.current
     val universeSceneState = remember { UniverseSceneState() }
-    var settingsOpen by remember { mutableStateOf(false) }
-    var planetHintVisible by remember { mutableStateOf(false) }
-    var showApiKeyDialog by remember { mutableStateOf(false) }
-    var currentApiKey by remember { mutableStateOf(library.apiClient.sessionStore.audiusApiKey) }
+    val preferences = remember(context) { LibraryPreferences(context.applicationContext) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    var folderPromptDismissed by rememberSaveable { mutableStateOf(false) }
 
-    val playerController = remember(context, scope, library.apiClient) {
-        PlayerController(
-            context = context,
-            coroutineScope = scope,
-            onTrackPlayed = { track -> library.recordPlayed(track) },
-            apiClient = library.apiClient,
-        )
-    }
-    DisposableEffect(playerController) {
-        onDispose { playerController.release() }
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            folderPromptDismissed = true
+            library.selectFolder(uri)
+        }
     }
 
-    val albums = library.albums
     val tracks = library.tracks
-    val artists = library.artists
 
     val playerState = playerController.state
     val currentTrack = playerState.currentTrack
     val currentColorSeed = currentTrack?.let(library::colorSeedFor) ?: 0
+    val currentArtworkPath = currentTrack?.let(library::artworkPathFor)
 
-    val prefs = remember(context) {
-        context.getSharedPreferences("celestial_prefs", Context.MODE_PRIVATE)
+    // Removing the library folder invalidates every queued SAF URI, so stop instead of erroring.
+    LaunchedEffect(library.hasFolder) {
+        if (!library.hasFolder) playerController.stop()
     }
-    var showFormation by remember {
-        mutableStateOf(!prefs.getBoolean("intro_completed", false))
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Playback works without it; the notification may be hidden. */ }
+    LaunchedEffect(currentTrack != null) {
+        if (currentTrack != null &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    var showFormation by rememberSaveable {
+        mutableStateOf(!preferences.introCompleted)
     }
     val dismissFormation = {
         showFormation = false
-        prefs.edit().putBoolean("intro_completed", true).apply()
+        preferences.introCompleted = true
     }
 
-    BackHandler(enabled = showApiKeyDialog || settingsOpen || !nav.isAtRoot() || showFormation) {
-        if (showApiKeyDialog) {
-            showApiKeyDialog = false
-        } else if (showFormation) {
-            dismissFormation()
-        } else if (settingsOpen) {
-            settingsOpen = false
-        } else {
-            nav.back()
+    val folderPromptVisible = !showFormation && !library.hasFolder && !folderPromptDismissed
+
+    BackHandler(
+        enabled = settingsOpen || !nav.isAtRoot() || showFormation || folderPromptVisible,
+    ) {
+        when {
+            showFormation -> dismissFormation()
+            folderPromptVisible -> folderPromptDismissed = true
+            settingsOpen -> settingsOpen = false
+            else -> nav.back()
         }
     }
 
@@ -136,15 +138,15 @@ fun CelestialAppShell(
         DestinationContent(
             nav = nav,
             tracks = tracks,
-            albums = albums,
-            artists = artists,
             library = library,
             playerState = playerState,
             playerController = playerController,
             currentColorSeed = currentColorSeed,
+            currentArtworkPath = currentArtworkPath,
             onPlay = { track, queue -> playerController.play(track, queue) },
             onToggleFavourite = { library.toggleFavourite(it.id) },
             onOpenSettings = { settingsOpen = true },
+            onChooseFolder = { folderPicker.launch(null) },
             universeSceneState = universeSceneState,
         )
 
@@ -161,10 +163,21 @@ fun CelestialAppShell(
             }
         }
 
+        if (library.isScanning && !showFormation) {
+            LibraryScanPill(
+                statusText = library.statusText,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(2f)
+                    .statusBarsPadding()
+                    .padding(top = CelestialTheme.spacing.sm),
+            )
+        }
+
         // The expanded player already shows the current track and controls, so the persistent mini
         // planet would only overlap its shuffle/repeat controls there.
         if (nav.current != NavTarget.NowPlaying) {
-            AnimationLayerWrap(
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .zIndex(2f)
@@ -174,10 +187,23 @@ fun CelestialAppShell(
                 MiniPlayerPlanet(
                     state = playerState,
                     albumColorSeed = currentColorSeed,
+                    albumArtworkPath = currentArtworkPath,
                     planetSize = 64.dp,
                     onClick = { nav.navigate(NavTarget.NowPlaying) },
                 )
             }
+        }
+
+        if (folderPromptVisible) {
+            MusicFolderPrompt(
+                isScanning = library.isScanning,
+                statusText = library.statusText,
+                onChooseFolder = { folderPicker.launch(null) },
+                onDismiss = { folderPromptDismissed = true },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(4f),
+            )
         }
 
         if (settingsOpen) {
@@ -187,7 +213,7 @@ fun CelestialAppShell(
                     .zIndex(3f)
                     .background(CelestialTheme.colors.spaceVoid.copy(alpha = 0.55f))
                     .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { settingsOpen = false },
                     ),
@@ -209,114 +235,19 @@ fun CelestialAppShell(
                             settingsOpen = false
                             showFormation = true
                         },
-                        backendStatus = library.backendStatus,
-                        backendStatusText = library.backendStatusText,
-                        apiBaseUrl = library.apiClient.baseUrl,
-                        isSyncing = library.isSyncing,
-                        onSync = { library.sync(manual = true) },
-                        audiusApiKey = currentApiKey,
-                        onOpenApiKeyDialog = { showApiKeyDialog = true },
+                        folderName = library.folderName,
+                        hasFolder = library.hasFolder,
+                        trackCount = library.tracks.size,
+                        statusText = library.statusText,
+                        isScanning = library.isScanning,
+                        onChooseFolder = { folderPicker.launch(null) },
+                        onRescan = { library.rescan() },
                     ),
                     onDismiss = { settingsOpen = false },
                 )
             }
         }
-
-        if (showApiKeyDialog) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(6f)
-                    .background(CelestialTheme.colors.spaceVoid.copy(alpha = 0.75f))
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showApiKeyDialog = false },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                var inputKey by remember {
-                    mutableStateOf(TextFieldValue(currentApiKey ?: ""))
-                }
-                val colors = CelestialTheme.colors
-                val spacing = CelestialTheme.spacing
-                CelestialGlassSurface(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null,
-                            onClick = {},
-                        ),
-                    shape = MaterialTheme.shapes.large,
-                ) {
-                    Column(modifier = Modifier.padding(spacing.lg)) {
-                        Text(
-                            text = "Audius API Key",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = colors.starlight,
-                        )
-                        Spacer(modifier = Modifier.height(spacing.sm))
-                        Text(
-                            text = "Ensures seamless, direct music streaming from Audius anywhere on phone with higher rate limits.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.moonlight,
-                        )
-                        Spacer(modifier = Modifier.height(spacing.md))
-                        GlassSearchField(
-                            value = inputKey,
-                            onValueChange = { inputKey = it },
-                            placeholder = "Paste Audius API Key...",
-                            hint = "Audius API Key",
-                        )
-                        Spacer(modifier = Modifier.height(spacing.lg))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            TextButton(onClick = { showApiKeyDialog = false }) {
-                                Text("Cancel", color = colors.moonlight)
-                            }
-                            Spacer(modifier = Modifier.width(spacing.sm))
-                            Button(
-                                onClick = {
-                                    val key = inputKey.text.trim().ifBlank { null }
-                                    library.apiClient.sessionStore.saveAudiusApiKey(key)
-                                    com.celestial.player.data.remote.DirectAudiusClient.updateApiKey(key)
-                                    currentApiKey = key
-                                    showApiKeyDialog = false
-                                },
-                            ) {
-                                Text("Save Key")
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
-}
-
-@Composable
-private fun PlanetHintChip(hintVisible: Boolean) {
-    val colors = CelestialTheme.colors
-    androidx.compose.animation.AnimatedVisibility(visible = hintVisible) {
-        CelestialGlassSurface(selected = true) {
-                        Text(
-                text = "Now Playing opens with the 3D universe",
-                color = colors.starlight,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun AnimationLayerWrap(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    Box(modifier = modifier) { content() }
 }
 
 @Composable
@@ -324,110 +255,108 @@ private fun settingsSections(
     reducedEffects: Boolean,
     onReducedEffectsChange: (Boolean) -> Unit,
     onReplayIntro: () -> Unit,
-    backendStatus: BackendStatus,
-    backendStatusText: String,
-    apiBaseUrl: String,
-    isSyncing: Boolean,
-    onSync: () -> Unit,
-    audiusApiKey: String?,
-    onOpenApiKeyDialog: () -> Unit,
-): List<SettingsSection> = listOf(
-    SettingsSection(
-        title = "Universe",
-        entries = listOf(
-            SettingsEntryValue.Toggle(
-                label = "Reduced effects",
-                description = "Calms ambient stars, comets and motion",
-                checked = reducedEffects,
-                onCheckedChange = onReducedEffectsChange,
+    folderName: String?,
+    hasFolder: Boolean,
+    trackCount: Int,
+    statusText: String,
+    isScanning: Boolean,
+    onChooseFolder: () -> Unit,
+    onRescan: () -> Unit,
+): List<SettingsSection> = buildList {
+    add(
+        SettingsSection(
+            title = "Library",
+            entries = buildList {
+                add(
+                    SettingsEntryValue.Info(
+                        label = "Music folder",
+                        description = folderName ?: "No folder selected",
+                        trailing = if (hasFolder) "Change" else "Choose",
+                        enabled = true,
+                        onClick = onChooseFolder,
+                    ),
+                )
+                add(
+                    SettingsEntryValue.Info(
+                        label = "Library status",
+                        description = statusText,
+                        trailing = when {
+                            isScanning -> "Scanning…"
+                            hasFolder -> "Rescan"
+                            else -> null
+                        },
+                        onClick = if (hasFolder && !isScanning) onRescan else null,
+                    ),
+                )
+                add(
+                    SettingsEntryValue.Info(
+                        label = "Indexed tracks",
+                        description = if (folderName != null) {
+                            "$trackCount audio files in $folderName"
+                        } else {
+                            "Choose a folder to build your library"
+                        },
+                        trailing = trackCount.toString(),
+                    ),
+                )
+            },
+        ),
+    )
+    add(
+        SettingsSection(
+            title = "Universe",
+            entries = listOf(
+                SettingsEntryValue.Toggle(
+                    label = "Reduced effects",
+                    description = "Calms ambient stars, comets and motion",
+                    checked = reducedEffects,
+                    onCheckedChange = onReducedEffectsChange,
+                ),
             ),
         ),
-    ),
-    SettingsSection(
-        title = "Audius streaming",
-        entries = listOf(
-            SettingsEntryValue.Info(
-                label = "Direct streaming",
-                description = "Streams tracks directly from Audius decentralized nodes",
-                trailing = "Active",
-                enabled = true,
-            ),
-            SettingsEntryValue.Info(
-                label = "Audius API key",
-                description = audiusApiKey?.let { "${it.take(4)}••••${it.takeLast(4)}" } ?: "Public tier (Tap to enter key)",
-                trailing = if (audiusApiKey.isNullOrBlank()) "Set" else "Change",
-                enabled = true,
-                onClick = onOpenApiKeyDialog,
+    )
+    add(
+        SettingsSection(
+            title = "Playback",
+            entries = listOf(
+                SettingsEntryValue.Info(
+                    label = "Replay intro",
+                    description = "Replays the universe creation sequence",
+                    trailing = "Replay",
+                    enabled = true,
+                    onClick = onReplayIntro,
+                ),
             ),
         ),
-    ),
-    SettingsSection(
-        title = "Account & sync",
-        entries = listOf(
-            SettingsEntryValue.Info(
-                label = "Celestial server",
-                description = backendStatusText,
-                trailing = if (isSyncing) "Syncing…" else "Sync now",
-                enabled = true,
-                onClick = if (isSyncing) null else onSync,
-            ),
-            SettingsEntryValue.Info(
-                label = "Connection mode",
-                description = when (backendStatus) {
-                    BackendStatus.Online -> "Online (Direct Audius streaming enabled)"
-                    BackendStatus.Checking -> "Checking backend availability"
-                    BackendStatus.Offline -> "Offline (Direct streaming active when connected)"
-                },
-                trailing = when (backendStatus) {
-                    BackendStatus.Online -> "Online"
-                    BackendStatus.Checking -> "Checking"
-                    BackendStatus.Offline -> "Offline"
-                },
-            ),
-            SettingsEntryValue.Info(
-                label = "API endpoint",
-                description = apiBaseUrl,
+    )
+    add(
+        SettingsSection(
+            title = "About",
+            entries = listOf(
+                SettingsEntryValue.Info(
+                    label = "Celestial",
+                    description = "Offline space-themed music player for Android",
+                    trailing = "v0.2.0",
+                    enabled = true,
+                ),
             ),
         ),
-    ),
-    SettingsSection(
-        title = "Playback",
-        entries = listOf(
-            SettingsEntryValue.Info(
-                label = "Replay intro",
-                description = "Replays the universe creation sequence",
-                trailing = "Replay",
-                enabled = true,
-                onClick = onReplayIntro,
-            ),
-        ),
-    ),
-    SettingsSection(
-        title = "About",
-        entries = listOf(
-            SettingsEntryValue.Info(
-                label = "Celestial",
-                description = "Space-themed media player for Android",
-                trailing = "v0.1.0",
-                enabled = true,
-            ),
-        ),
-    ),
-)
+    )
+}
 
 @Composable
 private fun DestinationContent(
     nav: CelestialNavState,
     tracks: List<Track>,
-    albums: List<com.celestial.player.domain.model.Album>,
-    artists: List<com.celestial.player.domain.model.Artist>,
     library: LibraryStateHolder,
     playerState: PlayerUiState,
     playerController: PlayerController,
     currentColorSeed: Int,
+    currentArtworkPath: String?,
     onPlay: (Track, List<Track>) -> Unit,
     onToggleFavourite: (Track) -> Unit,
     onOpenSettings: () -> Unit,
+    onChooseFolder: () -> Unit,
     universeSceneState: UniverseSceneState,
 ) {
     val reducedMotion = CelestialTheme.effects.reducedMotion
@@ -437,7 +366,8 @@ private fun DestinationContent(
             if (reducedMotion) {
                 fadeIn(androidx.compose.animation.core.tween(160)) togetherWith
                     fadeOut(androidx.compose.animation.core.tween(160))
-            } else {                (slideInVertically(
+            } else {
+                (slideInVertically(
                     animationSpec = androidx.compose.animation.core.tween(240),
                     initialOffsetY = { it / 16 },
                 ) + fadeIn(androidx.compose.animation.core.tween(240))) togetherWith
@@ -451,7 +381,7 @@ private fun DestinationContent(
     ) { target ->
         when (target) {
             is NavTarget.Universe -> CelestialUniverseScene(
-                onSelectPlanet = { target -> nav.navigate(target) },
+                onSelectPlanet = { destination -> nav.navigate(destination) },
                 onOpenSettings = onOpenSettings,
                 returningFromTarget = nav.previousDestination,
                 sceneState = universeSceneState,
@@ -474,9 +404,9 @@ private fun DestinationContent(
 
             is NavTarget.Playlists -> PlaylistsScreen(
                 playlists = library.playlists,
-                backendStatusText = library.backendStatusText,
-                isBackendConnected = library.isBackendConnected,
-                onRetrySync = { library.sync() },
+                libraryStatusText = library.statusText,
+                isLibraryReady = library.status == LibraryStatus.Ready && library.tracks.isNotEmpty(),
+                onRescan = { library.rescan() },
                 onOpenPlaylist = { nav.navigate(NavTarget.PlaylistDetail(it.id)) },
                 onPlayPlaylist = { playlist ->
                     val plTracks = playlist.trackIds.mapNotNull { library.trackById(it) }
@@ -507,8 +437,6 @@ private fun DestinationContent(
 
             is NavTarget.Search -> SearchDestinationScreen(
                 sampleTracks = tracks,
-                sampleAlbums = albums,
-                sampleArtists = artists,
                 playlists = library.playlists,
                 suggestedTrackIds = tracks.take(5).map { it.id },
                 isFavourite = { library.isFavourite(it.id) },
@@ -516,72 +444,25 @@ private fun DestinationContent(
                 colorSeedFor = { track -> library.colorSeedFor(track) },
                 onPlayTrack = onPlay,
                 onToggleFavourite = onToggleFavourite,
-                onOpenAlbum = { nav.navigate(NavTarget.AlbumDetail(it.id)) },
-                onOpenArtist = { nav.navigate(NavTarget.ArtistDetail(it.id)) },
                 onOpenPlaylist = { nav.navigate(NavTarget.PlaylistDetail(it.id)) },
-                onSearch = { query -> library.remoteSearch(query) },
+                onSearch = { query -> library.search(query) },
                 onBack = { nav.back() },
             )
 
             is NavTarget.AllSongs -> AllSongsScreen(
                 tracks = tracks,
+                libraryStatusText = library.statusText,
+                hasFolder = library.hasFolder,
+                isScanning = library.isScanning,
                 isFavourite = { library.isFavourite(it.id) },
                 currentTrackId = playerState.currentTrack?.id,
                 colorSeedFor = { track -> library.colorSeedFor(track) },
+                onChooseFolder = onChooseFolder,
+                onRescan = { library.rescan() },
                 onPlayTrack = onPlay,
                 onToggleFavourite = onToggleFavourite,
                 onBack = { nav.back() },
             )
-
-            is NavTarget.Albums -> AlbumsScreen(
-                albums = albums,
-                onOpenAlbum = { nav.navigate(NavTarget.AlbumDetail(it.id)) },
-                onBack = { nav.back() },
-            )
-
-            is NavTarget.AlbumDetail -> {
-                val album = albums.firstOrNull { it.id == target.albumId }
-                if (album == null) {
-                    nav.back()
-                } else {
-                    val albumTracks = album.trackIds.mapNotNull { tracks.firstOrNull { t -> t.id == it } }
-                    AlbumDetailScreen(
-                        album = album,
-                        tracks = albumTracks,
-                        isFavourite = { library.isFavourite(it.id) },
-                        currentTrackId = playerState.currentTrack?.id,
-                        onBack = { nav.back() },
-                        onPlay = onPlay,
-                        onToggleFavourite = onToggleFavourite,
-                    )
-                }
-            }
-
-            is NavTarget.Artists -> ArtistsScreen(
-                artists = artists,
-                onOpenArtist = { nav.navigate(NavTarget.ArtistDetail(it.id)) },
-                onBack = { nav.back() },
-            )
-
-            is NavTarget.ArtistDetail -> {
-                val artist = artists.firstOrNull { it.id == target.artistId }
-                if (artist == null) {
-                    nav.back()
-                } else {
-                    val artistTracks = artist.trackIds.mapNotNull { tracks.firstOrNull { t -> t.id == it } }
-                    ArtistDetailScreen(
-                        artist = artist,
-                        tracks = artistTracks,
-                        albums = albums.filter { it.artistId == artist.id },
-                        isFavourite = { library.isFavourite(it.id) },
-                        currentTrackId = playerState.currentTrack?.id,
-                        onBack = { nav.back() },
-                        onPlay = onPlay,
-                        onToggleFavourite = onToggleFavourite,
-                        onOpenAlbum = { nav.navigate(NavTarget.AlbumDetail(it.id)) },
-                    )
-                }
-            }
 
             is NavTarget.Favourites -> FavouritesScreen(
                 tracks = library.favouriteTracks(),

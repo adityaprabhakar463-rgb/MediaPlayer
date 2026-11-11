@@ -4,28 +4,28 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
-import com.celestial.player.data.LibraryStateHolder
-import com.celestial.player.data.remote.CelestialApiClient
 import com.celestial.player.ui.CelestialAppShell
 import com.celestial.player.ui.theme.CelestialEffects
 import com.celestial.player.ui.theme.CelestialTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val appViewModel: CelestialAppViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        val library = appViewModel.library
+        val player = appViewModel.player
+        val nav = appViewModel.nav
         setContent {
-            var reducedEffects by remember { mutableStateOf(false) }
-            val scope = rememberCoroutineScope()
-            val context = LocalContext.current
+            var reducedEffects by rememberSaveable { mutableStateOf(false) }
+
             CelestialTheme(
                 effects = CelestialEffects(
                     reducedMotion = reducedEffects,
@@ -33,17 +33,10 @@ class MainActivity : ComponentActivity() {
                     glowIntensity = if (reducedEffects) 0.5f else 1f,
                 ),
             ) {
-                val library = remember(context) {
-                    LibraryStateHolder(
-                        apiClient = CelestialApiClient(context.applicationContext),
-                        coroutineScope = scope,
-                    )
-                }
-                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-                    library.sync()
-                }
                 CelestialAppShell(
                     library = library,
+                    playerController = player,
+                    navState = nav,
                     reducedEffects = reducedEffects,
                     onReducedEffectsChange = { reducedEffects = it },
                 )

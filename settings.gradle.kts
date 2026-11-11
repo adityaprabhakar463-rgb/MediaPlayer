@@ -20,4 +20,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "Celestial"
 include(":app")
-include(":backend")

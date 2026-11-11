@@ -27,6 +27,7 @@ fun MiniPlayerPlanet(
     state: PlayerUiState,
     modifier: Modifier = Modifier,
     albumColorSeed: Int = 0,
+    albumArtworkPath: String? = null,
     planetSize: Dp = 64.dp,
     onClick: (() -> Unit)? = null,
 ) {
@@ -34,8 +35,8 @@ fun MiniPlayerPlanet(
     val tapDescription = "Current track: ${state.currentTrack?.title ?: "none"}"
     val stateText = when {
         state.currentTrack == null -> "No music playing"
-        state.isPlaying -> "Playing ${state.currentTrack?.artistName}, ${(state.progressFraction * 100).toInt()}% complete"
-        else -> "Paused: ${state.currentTrack?.artistName}"
+        state.isPlaying -> "Playing ${state.currentTrack.artistName}, ${(state.progressFraction * 100).toInt()}% complete"
+        else -> "Paused: ${state.currentTrack.artistName}"
     }
     val interactionSource = remember { MutableInteractionSource() }
     Box(
@@ -83,6 +84,7 @@ fun MiniPlayerPlanet(
             colorSeed = albumColorSeed,
             shape = CircleShape,
             icon = null,
+            imagePath = albumArtworkPath,
         )
     }
 }

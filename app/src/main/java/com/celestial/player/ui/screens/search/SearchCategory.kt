@@ -4,7 +4,5 @@ enum class SearchCategory(
     val label: String,
 ) {
     Songs("Songs"),
-    Albums("Albums"),
-    Artists("Artists"),
     Playlists("Playlists"),
 }

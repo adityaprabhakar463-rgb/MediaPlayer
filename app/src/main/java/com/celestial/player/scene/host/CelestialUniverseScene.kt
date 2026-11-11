@@ -89,7 +89,7 @@ private val LabelCollisionGap = 4.dp
 private val LabelTopInset = 104.dp
 private val LabelBottomInset = 108.dp
 private const val MinLabelTouchTargetDp = 48f
-private const val MaxVisibleLabels = 7
+private const val MaxVisibleLabels = 5
 
 private data class PlanetLabelLayout(
     val planet: Planet3D,

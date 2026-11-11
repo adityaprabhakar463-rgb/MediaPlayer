@@ -150,10 +150,9 @@ fun NowPlayingScreen(
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
             val streamLabel = when {
-                state.isResolvingStream -> "Resolving stream…"
+                state.isPreparing || state.isBuffering -> "Preparing local file…"
                 state.playbackError != null -> "Playback error · ${state.playbackError}"
-                state.streamUrl != null && state.streamProvider == "audius" -> "Streaming via Audius"
-                state.streamUrl != null -> "Streaming via Celestial"
+                track != null -> if (state.isPlaying) "Playing from your library" else "Paused · local file"
                 else -> null
             }
             if (streamLabel != null) {

@@ -12,8 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
@@ -37,9 +37,9 @@ import com.celestial.player.ui.theme.CelestialTheme
 @Composable
 fun PlaylistsScreen(
     playlists: List<Playlist>,
-    backendStatusText: String? = null,
-    isBackendConnected: Boolean = false,
-    onRetrySync: (() -> Unit)? = null,
+    libraryStatusText: String? = null,
+    isLibraryReady: Boolean = false,
+    onRescan: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     onOpenPlaylist: (Playlist) -> Unit,
@@ -60,13 +60,13 @@ fun PlaylistsScreen(
             )
         },
     ) {
-        if (backendStatusText != null) {
+        if (libraryStatusText != null) {
             CelestialGlassSurface(
-                selected = isBackendConnected,
+                selected = isLibraryReady,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = CelestialTheme.spacing.screenEdge, vertical = CelestialTheme.spacing.xs)
-                    .then(if (onRetrySync != null) Modifier.clickable { onRetrySync() } else Modifier)
+                    .then(if (onRescan != null) Modifier.clickable { onRescan() } else Modifier)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -74,20 +74,20 @@ fun PlaylistsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = if (isBackendConnected) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
+                        imageVector = if (isLibraryReady) Icons.Filled.Folder else Icons.Filled.FolderOff,
                         contentDescription = null,
-                        tint = if (isBackendConnected) CelestialTheme.colors.auroraBlue else CelestialTheme.colors.starlight.copy(alpha = 0.6f)
+                        tint = if (isLibraryReady) CelestialTheme.colors.auroraBlue else CelestialTheme.colors.starlight.copy(alpha = 0.6f)
                     )
                     Text(
-                        text = backendStatusText,
+                        text = libraryStatusText,
                         style = MaterialTheme.typography.labelSmall,
                         color = CelestialTheme.colors.starlight,
                         modifier = Modifier.weight(1f)
                     )
-                    if (onRetrySync != null) {
+                    if (onRescan != null) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Retry connection",
+                            contentDescription = "Rescan music folder",
                             tint = CelestialTheme.colors.starlight.copy(alpha = 0.8f)
                         )
                     }

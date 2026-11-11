@@ -14,6 +14,12 @@ value class ArtistId(val value: String)
 @JvmInline
 value class PlaylistId(val value: String)
 
+/**
+ * A single playable audio file found inside the user's chosen music folder.
+ *
+ * [mediaUri] is the SAF document URI used by Media3. [folderPath] is the human-readable path
+ * relative to the library root, used for folder grouping and display.
+ */
 @Immutable
 data class Track(
     val id: TrackId,
@@ -24,6 +30,12 @@ data class Track(
     val albumTitle: String,
     val trackIndex: Int,
     val durationMs: Long,
+    val mediaUri: String,
+    val folderPath: String,
+    val artworkPath: String? = null,
+    val mimeType: String = "",
+    val dateAddedMs: Long = 0L,
+    val sizeBytes: Long = 0L,
 )
 
 @Immutable
@@ -34,14 +46,7 @@ data class Album(
     val artistName: String,
     val colorSeed: Int,
     val trackIds: List<TrackId>,
-)
-
-@Immutable
-data class Artist(
-    val id: ArtistId,
-    val name: String,
-    val albumIds: List<AlbumId> = emptyList(),
-    val trackIds: List<TrackId> = emptyList(),
+    val artworkPath: String? = null,
 )
 
 @Immutable

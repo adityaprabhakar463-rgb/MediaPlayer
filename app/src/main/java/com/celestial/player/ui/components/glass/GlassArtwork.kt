@@ -3,9 +3,12 @@ package com.celestial.player.ui.components.glass
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -15,14 +18,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.ui.graphics.vector.ImageVector
-import com.celestial.player.ui.theme.CelestialTheme
+import coil3.compose.AsyncImage
 import com.celestial.player.ui.theme.CelestialColors
+import com.celestial.player.ui.theme.CelestialTheme
+import java.io.File
 
 fun artworkColors(colorSeed: Int, colors: CelestialColors): List<Color> {
     val accent = when (colorSeed % 4) {
@@ -36,6 +40,11 @@ fun artworkColors(colorSeed: Int, colors: CelestialColors): List<Color> {
     return listOf(top, colors.deepSurface, colors.spaceVoid.copy(alpha = 0.85f))
 }
 
+/**
+ * Album/artist artwork tile. When [imagePath] points at extracted embedded art, the bitmap is
+ * drawn over the token-derived gradient; if the file is missing, the designed fallback remains
+ * visible instead of a broken image.
+ */
 @Composable
 fun GlassArtwork(
     modifier: Modifier = Modifier,
@@ -44,6 +53,7 @@ fun GlassArtwork(
     shape: Shape = MaterialTheme.shapes.small,
     initials: String? = null,
     icon: ImageVector? = Icons.Filled.MusicNote,
+    imagePath: String? = null,
 ) {
     val colors = CelestialTheme.colors
     Box(
@@ -59,6 +69,14 @@ fun GlassArtwork(
                 imageVector = icon,
                 contentDescription = null,
                 tint = colors.starlight.copy(alpha = 0.55f),
+            )
+        }
+        if (imagePath != null) {
+            AsyncImage(
+                model = File(imagePath),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
